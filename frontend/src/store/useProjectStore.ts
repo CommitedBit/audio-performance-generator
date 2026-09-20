@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Clip } from '../types/timeline';
+import type { Project, Clip, TrackType } from '../types/timeline';
 
 export interface ProjectState {
   project: Project;
@@ -16,8 +16,12 @@ const useProjectStore = create<ProjectState>(set => ({
   project: {
     id: 'project1',
     name: 'New Project',
+    // One track per generated type. The 'sfx' and 'music' TrackType variants
+    // existed but were unreachable: nothing could ever create a track for them.
     tracks: [
-      { id: 'track1', type: 'voice', name: 'Voice' },
+      { id: 'track-voice', type: 'voice', name: 'Voice' },
+      { id: 'track-sfx', type: 'sfx', name: 'SFX' },
+      { id: 'track-music', type: 'music', name: 'Music' },
     ],
     clips: [],
   },
@@ -68,3 +72,7 @@ export default useProjectStore;
 // unstable selector re-renders forever. Call it inside a useMemo instead.
 export const orderedClips = (clips: Clip[]) =>
   [...clips].sort((a, b) => a.start - b.start);
+
+/** The track that generated audio of a given type belongs on. */
+export const trackIdForType = (project: Project, type: TrackType): string | undefined =>
+  project.tracks.find(t => t.type === type)?.id;

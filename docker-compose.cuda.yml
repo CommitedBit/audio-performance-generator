@@ -1,0 +1,26 @@
+# CUDA override for the Proxmox GPU host.
+#   docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build
+#
+# Requires nvidia-container-toolkit installed in the Docker host (the VM or LXC
+# guest), and the NVIDIA driver on whichever layer owns the card.
+
+services:
+  backend:
+    build:
+      args:
+        BASE: cuda
+        EXTRAS: all          # chatterbox + transformers + diffusers + torch
+    environment:
+      DEVICE: cuda
+      DEV_STUB: "0"
+      # Reduce fragmentation when several audio models cycle through VRAM.
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Weight downloads on first run are large; give the container room to work.
+    shm_size: "2gb"

@@ -97,11 +97,17 @@ export default function Timeline() {
   };
 
   return (
-    <div>
-      <button onClick={play} disabled={playing}>Play</button>
-      <div style={{ position: 'relative' }}>
+    <div className="panel">
+      <div className="row">
+        <button onClick={play} disabled={playing || clips.length === 0}>Play</button>
+        <span className="muted small">
+          {clips.length} clip{clips.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="timeline">
         {project.tracks.map(track => (
-          <div key={track.id} style={{ position: 'relative', height: 64 }}>
+          <div key={track.id} className="track">
+            <span className="track-label">{track.name}</span>
             {project.clips.filter(c => c.trackId === track.id).map(c => {
               const left = c.start * PIXELS_PER_SEC;
               const width = c.duration * PIXELS_PER_SEC;

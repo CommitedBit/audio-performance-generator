@@ -1,0 +1,46 @@
+# Default stack: CPU-only. Runs anywhere, including an arm64 Mac.
+# For the Proxmox GPU box, add the CUDA override:
+#   docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d
+name: audio-performance-generator
+
+services:
+  backend:
+    build:
+      context: ./backend
+      args:
+        BASE: cpu
+        EXTRAS: ""          # "" = stub providers only; see docker-compose.cuda.yml
+    environment:
+      DEVICE: ${DEVICE:-cpu}
+      DATA_DIR: /data
+      HF_HOME: /models
+      PROVIDERS: ${PROVIDERS:-auto}
+      DEV_STUB: ${DEV_STUB:-1}
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-600}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Optional cloud fallback. Unset means the provider is simply not offered.
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      # Needed for gated repos such as Stable Audio Open.
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - models:/models       # HF cache: multi-GB weights, survives rebuilds
+      - data:/data           # generated audio + voice references
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: /api
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  models:
+  data:
