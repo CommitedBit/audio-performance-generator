@@ -51,37 +51,89 @@ stack (`EXTRAS=all`), sets `DEVICE=cuda`, and reserves the GPU.
 Set `DEV_STUB=0` in `.env` once real providers are working so the placeholders
 stop being offered.
 
-### Proxmox: VM or LXC?
+### Proxmox: use a VM, not an LXC container
 
-Both work; they fail differently.
+**Put the GPU in a Linux VM with VFIO passthrough.** LXC GPU sharing looks
+simpler and is genuinely lighter, but it is the path where people lose days:
+the guest's userspace NVIDIA driver must match the host's *exactly*, and
+Proxmox VE 9 shipped an LXC 6.0.4 regression that broke
+nvidia-container-toolkit in unprivileged containers outright until lxc-pve
+6.0.5. With a VM, every one of those failure modes simply does not exist.
 
-- **VM with VFIO passthrough** — the GPU is handed to one guest wholesale.
-  Cleaner isolation and the driver lives entirely inside the VM, so the host
-  stays simple. Needs IOMMU enabled and the card bound to `vfio-pci` at boot.
-  This is the more predictable option.
-- **LXC with device passthrough** — the container shares the host's driver via
-  cgroup device rules. Lighter, and several containers can share one card, but
-  the host and container driver versions must match exactly, which makes host
-  upgrades a recurring hazard.
+The one real risk with passthrough is IOMMU on consumer hardware, and it costs
+30 seconds to check before committing. On the Proxmox node:
 
-Either way `nvidia-smi` must work *inside the Docker host* before compose will
-see a GPU. Verify that first:
+```bash
+dmesg | grep -e DMAR -e IOMMU          # want: DMAR: IOMMU enabled
+dmesg | grep remapping                 # want: Enabled IRQ remapping
+```
+
+If interrupt remapping is absent you need
+`echo "options vfio_iommu_type1 allow_unsafe_interrupts=1" > /etc/modprobe.d/iommu_unsafe_interrupts.conf`.
+Then blacklist the host drivers (`nouveau`, `nvidia*`), reboot, and add the card
+to the VM as a PCI device.
+
+Inside the VM, install Docker and nvidia-container-toolkit normally. Confirm the
+GPU is visible to Docker *before* touching compose:
 
 ```bash
 docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
 
+Note the tradeoff: the VM owns the card exclusively while it runs, so nothing
+else on the Proxmox host can use it concurrently.
+
+### Models
+
+Defaults, and why:
+
+| Track | Model | Weights licence | Peak VRAM |
+| --- | --- | --- | --- |
+| voice | **Chatterbox** (Resemble AI) | MIT — code *and* weights | ~3.2 GB |
+| music | **ACE-Step 1.5** | MIT | 6–8 GB tier |
+| sfx | **Stable Audio 3 small-sfx** | Stability Community (free under $1M rev) | ~2.4 GB |
+
+Chatterbox is not the highest-scoring open TTS model — Kokoro-82M and Maya1
+both rank above it and are Apache-2.0, though neither does zero-shot voice
+cloning. What makes Chatterbox the right default here is that it is the only
+expressive cloning model in the top tier whose weights are MIT: every
+clearly better-sounding one (Breeze TTS 2, Fish S2 Pro, Higgs TTS 3, Voxtral
+TTS, F5-TTS, XTTS-v2) ships research or non-commercial weights. Breeze's
+licence restricts generated **outputs**, not just the weights.
+
+MusicGen is still registered but is no longer a sensible default: CC-BY-NC
+weights and outclassed by ACE-Step, which is MIT.
+
+**Sizing the SFX/music models is a VRAM decision, not a taste one.** Stability
+split the small tier because at 459M, mixing SFX and music data "degrades
+musical coherence", while medium handles both in one checkpoint:
+
+- **8 GB** — two small specialists, `small-sfx` + `small-music`, ~2.4 GB each.
+  This is the default.
+- **12 GB+** — set `SA3_MODEL=stabilityai/stable-audio-3-medium` and one
+  ~6.5 GB checkpoint serves both tracks, with 380s max length instead of 120s.
+
+> **Two traps with Stable Audio 3 medium.** Flash Attention 2 is **mandatory**
+> and its absence fails *silently* — output collapses to static rather than
+> raising. It needs compute capability ≥ 8.0 (RTX 3090 / 4090 class; Turing and
+> older cannot run medium at all). The provider refuses to load rather than
+> generate garbage, and reports why. The small checkpoints carry no such
+> requirement.
+
 ### First run downloads weights
 
-Model weights are deliberately **not** baked into the image — they would make
-it unusable to move around. They download on first use into the `models` named
-volume, which persists across rebuilds. Expect several GB and a slow first
-request per model. The healthcheck allows a 180s start period for exactly this
-reason.
+Weights are deliberately **not** baked into the image — that would put it at
+15–25 GB and couple every code change to a multi-gigabyte rebuild. They
+download on first use into the `models` named volume, which survives container
+recreation. Expect ~10 GB and a slow first request per model.
 
-Stable Audio Open is a **gated** HuggingFace repo: accept its licence on the
-model page, then put a read token in `HF_TOKEN` or that provider will fail to
-load with a 401.
+The healthcheck allows a **15 minute** start period for exactly this. Failed
+checks during that window do not count against `retries`, and one success ends
+it early, so it costs nothing when startup is fast.
+
+Stable Audio 3 is a **gated** HuggingFace repo: accept its licence on the model
+page, then put a read token in `HF_TOKEN`. It is read at runtime, never baked
+into the image.
 
 ## Configuration
 
@@ -95,7 +147,9 @@ Everything is environment-driven; see [.env.example](.env.example).
 | `MAX_CONCURRENT_JOBS` | `1` | Generation is serialised; one GPU, one model |
 | `MODEL_IDLE_TIMEOUT` | `600` | Unload an idle model to free VRAM; `0` disables |
 | `ELEVENLABS_API_KEY` | — | Optional cloud fallback; unset means not offered |
-| `HF_TOKEN` | — | Required for gated repos |
+| `HF_TOKEN` | — | Required for gated repos (Stable Audio 3) |
+| `SA3_MODEL` | — | Pin one checkpoint for both music and sfx (12 GB+) |
+| `ACESTEP_BACKEND` | `pt` | `pt` avoids vLLM, whose pinned CUDA kernels are fragile |
 
 ## API
 
@@ -149,8 +203,14 @@ The frontend needs no change: it renders whatever `/v1/models` reports.
 
 Model **weights** frequently carry different terms from the **code** that runs
 them, and the difference is easy to miss. MusicGen is the classic trap: MIT
-code, CC-BY-NC weights. Each provider declares its own licence and the Server
-tab displays it. Check them before shipping anything commercial.
+code, CC-BY-NC weights. F5-TTS is the same shape — MIT code, CC-BY-NC weights.
+Each provider declares its own licence and the Server tab displays it.
+
+The defaults above are all commercially usable: Chatterbox and ACE-Step are
+MIT, Stable Audio 3 is free below a $1M annual revenue threshold. Swap in
+anything else and check its weights terms first — and note that at least one
+model in this space (Breeze TTS 2) restricts the **generated audio**, not just
+the weights.
 
 Voice cloning: only clone a voice you have permission to use. Several
 jurisdictions now regulate this directly.

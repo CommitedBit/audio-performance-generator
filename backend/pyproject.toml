@@ -17,16 +17,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Local text-to-speech.
+# Local text-to-speech. Chatterbox is MIT for code AND weights.
 tts = ["chatterbox-tts>=0.1.1"]
-# Local music generation via transformers (not audiocraft -- see musicgen.py).
-music = ["transformers>=4.44", "torch>=2.4", "torchaudio>=2.4", "scipy>=1.11"]
-# Local SFX / ambience via diffusers.
-sfx = ["diffusers>=0.30", "transformers>=4.44", "torch>=2.4", "torchaudio>=2.4"]
-# Everything local.
+# Local music. ACE-Step has MIT weights and is the default; transformers is
+# kept for the legacy MusicGen provider.
+music = ["acestep>=1.5", "transformers>=4.44", "torch>=2.4", "torchaudio>=2.4", "scipy>=1.11"]
+# Local SFX / ambience via Stable Audio 3.
+sfx = ["diffusers>=0.31", "transformers>=4.44", "torch>=2.4", "torchaudio>=2.4"]
+# flash-attn is MANDATORY for the Stable Audio 3 *medium* checkpoint: without
+# it output silently collapses to static. Needs compute capability >= 8.0 and a
+# CUDA toolchain to build, so it is its own extra rather than part of `all`.
+flash = ["flash-attn>=2.6"]
 all = [
     "chatterbox-tts>=0.1.1",
-    "diffusers>=0.30",
+    "acestep>=1.5",
+    "diffusers>=0.31",
     "transformers>=4.44",
     "torch>=2.4",
     "torchaudio>=2.4",
@@ -34,13 +39,22 @@ all = [
 ]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
 
+# Pin the CUDA wheel index explicitly. Without this you can silently install
+# the default torch wheel, which bundles its own full copy of CUDA -- two
+# toolchains in one image and several wasted GB.
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
 [tool.ruff]
 line-length = 110
 target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-ignore = ["E501"]
+# B008: FastAPI *requires* File()/Form()/Depends() calls in argument defaults.
+ignore = ["E501", "B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

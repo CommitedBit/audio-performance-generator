@@ -10,12 +10,13 @@ two audio models concurrently -- raise MAX_CONCURRENT_JOBS only if VRAM allows.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import enum
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 log = logging.getLogger(__name__)
 
@@ -113,10 +114,10 @@ class JobQueue:
 
     async def wait_for(self, job: Job, timeout: float | None = None) -> Job:
         if job._future is not None:
-            try:
+            # A timeout is the normal path for slow work: the caller then gets
+            # the job back to poll instead of holding the connection open.
+            with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(asyncio.shield(job._future), timeout=timeout)
-            except asyncio.TimeoutError:
-                pass
         return job
 
     def get(self, job_id: str) -> Job | None:

@@ -26,7 +26,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     HF_HOME=/models \
-    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    HF_XET_HIGH_PERFORMANCE=1 \
     DATA_DIR=/data
 
 # ffmpeg: torchaudio and several providers shell out to it for decoding.
@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system --index-strategy unsafe-best-match \
         --extra-index-url "${TORCH_INDEX_URL}" \
         $( [ -n "${EXTRAS}" ] && echo ".[${EXTRAS}]" || echo "." ) \
-    && ( [ -n "${EXTRAS}" ] && uv pip install --system hf_transfer || true )
+
 
 COPY app ./app
 
@@ -63,9 +63,10 @@ USER app
 
 EXPOSE 8000
 
-# start_period is generous on purpose: the first request after boot may pull
-# several GB of weights, and a tighter probe would kill the container mid-download.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
+# start_period is 15 minutes on purpose: a first boot on a fresh volume may pull
+# ~10 GB of weights. Checks that fail during the grace period do not count
+# against `retries`, and one success ends it early, so this is free when fast.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15m --start-interval=5s --retries=3 \
     CMD curl -fsS http://localhost:8000/health || exit 1
 
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

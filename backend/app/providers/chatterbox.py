@@ -28,9 +28,12 @@ class ChatterboxProvider(Provider):
     id = "chatterbox"
     name = "Chatterbox (Resemble AI)"
     capability = Capability.VOICE
-    # Repo code and weights have differed historically -- surfaced in the UI so
-    # the choice is visible rather than buried in a lockfile.
-    license = "MIT (see model card; verify weights terms before commercial use)"
+    # MIT for BOTH code and weights -- confirmed against the repo LICENSE, the
+    # HF cardData license field and the PyPI package metadata. No separate
+    # weights terms and no gated download, which is rare in this tier: every
+    # clearly better-sounding expressive cloning model ships non-commercial
+    # weights. That is why this is the default despite not topping the arena.
+    license = "MIT (code and weights)"
     requires_gpu = False          # runs on CPU, just slowly
     description = "Expressive English TTS with zero-shot voice cloning from a short reference sample."
 

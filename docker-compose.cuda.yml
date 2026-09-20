@@ -9,7 +9,7 @@ services:
     build:
       args:
         BASE: cuda
-        EXTRAS: all          # chatterbox + transformers + diffusers + torch
+        EXTRAS: all          # chatterbox + acestep + diffusers + transformers + torch
     environment:
       DEVICE: cuda
       DEV_STUB: "0"
@@ -20,7 +20,10 @@ services:
         reservations:
           devices:
             - driver: nvidia
+              # `count` and `device_ids` are mutually exclusive -- use
+              # device_ids: ['0'] instead to pin one card on a multi-GPU host.
               count: all
+              # Mandatory. Compose errors on deployment if this is omitted.
               capabilities: [gpu]
     # Weight downloads on first run are large; give the container room to work.
     shm_size: "2gb"

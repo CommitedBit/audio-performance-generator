@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 from ..config import get_settings
-from .base import AudioResult, Capability, GenerateRequest, ParamSpec, Provider, VoiceInfo, wav_duration
+from .base import AudioResult, Capability, GenerateRequest, ParamSpec, Provider, VoiceInfo
 
 log = logging.getLogger(__name__)
 

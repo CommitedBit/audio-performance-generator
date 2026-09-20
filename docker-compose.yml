@@ -21,14 +21,28 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Optional cloud fallback. Unset means the provider is simply not offered.
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
-      # Needed for gated repos such as Stable Audio Open.
+      # Required at RUNTIME for gated repos (Stable Audio 3). Never baked in.
       HF_TOKEN: ${HF_TOKEN:-}
+      # Pin one checkpoint for both music and sfx on a 12 GB+ card.
+      SA3_MODEL: ${SA3_MODEL:-}
+      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
+      ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
     volumes:
       - models:/models       # HF cache: multi-GB weights, survives rebuilds
       - data:/data           # generated audio + voice references
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # A first boot on an empty volume may download ~10 GB of weights.
+      # Failures during start_period do not count against retries, and one
+      # success ends it early -- so this is free when startup is fast.
+      start_period: 15m
+      start_interval: 5s
 
   frontend:
     build:

@@ -28,15 +28,20 @@ def _build() -> list[Provider]:
             # whole API down with it.
             log.warning("provider %s could not be registered: %s", label, exc)
 
+    from .providers.acestep import AceStepProvider
     from .providers.chatterbox import ChatterboxProvider
     from .providers.elevenlabs import ElevenLabsSfx, ElevenLabsVoice
     from .providers.musicgen import MusicGenProvider
-    from .providers.stable_audio import StableAudioProvider
+    from .providers.stable_audio import StableAudio3Provider
 
+    # Registration order is preference order: default_for() takes the first
+    # available local provider, so the best pick per capability comes first.
     try_add(ChatterboxProvider, "chatterbox")
+    try_add(AceStepProvider, "acestep")
+    try_add(lambda: StableAudio3Provider(Capability.SFX), "stable-audio-3-sfx")
+    try_add(lambda: StableAudio3Provider(Capability.MUSIC), "stable-audio-3-music")
+    # Legacy, kept for comparison: CC-BY-NC weights and outclassed on quality.
     try_add(MusicGenProvider, "musicgen")
-    try_add(lambda: StableAudioProvider(Capability.SFX), "stable-audio-sfx")
-    try_add(lambda: StableAudioProvider(Capability.MUSIC), "stable-audio-music")
     try_add(ElevenLabsVoice, "elevenlabs-voice")
     try_add(ElevenLabsSfx, "elevenlabs-sfx")
 

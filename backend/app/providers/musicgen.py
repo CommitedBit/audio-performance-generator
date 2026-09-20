@@ -27,7 +27,7 @@ class MusicGenProvider(Provider):
     capability = Capability.MUSIC
     license = "weights CC-BY-NC 4.0 (non-commercial) / code MIT -- verify on the model card"
     requires_gpu = False
-    description = "Text-to-music. Instrumental; good for beds and loops rather than full songs."
+    description = "Legacy. Superseded by ACE-Step (MIT) and Stable Audio 3 on both quality and licence; kept for comparison."
 
     def __init__(self, model_id: str | None = None) -> None:
         super().__init__()
