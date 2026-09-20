@@ -1,11 +1,12 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import useProjectStore, { orderedClips } from '../store/useProjectStore';
+import type { TrackType } from '../types/timeline';
 import { getBlob } from '../hooks/useIndexedAudio';
 import { AudioEngine } from '../engine/AudioEngine';
 
 const PIXELS_PER_SEC = 100;
 
-const colors = {
+const colors: Record<TrackType, string> = {
   voice: '#3b82f6', // blue-500
   sfx: '#f59e0b',   // amber-500
   music: '#10b981', // emerald-500
@@ -13,12 +14,13 @@ const colors = {
 
 export default function Timeline() {
   const project = useProjectStore(s => s.project);
-  const clips = useProjectStore(orderedClips);
+  const rawClips = useProjectStore(s => s.project.clips);
+  const clips = useMemo(() => orderedClips(rawClips), [rawClips]);
   const updateClip = useProjectStore(s => s.updateClip);
   const playing = useProjectStore(s => s.playing);
   const setPlaying = useProjectStore(s => s.setPlaying);
 
-  const engineRef = useRef<AudioEngine>();
+  const engineRef = useRef<AudioEngine | null>(null);
   if (!engineRef.current) engineRef.current = new AudioEngine(getBlob);
 
   const play = async () => {
@@ -98,7 +100,7 @@ export default function Timeline() {
     <div>
       <button onClick={play} disabled={playing}>Play</button>
       <div style={{ position: 'relative' }}>
-        {project.tracks.map((track, idx) => (
+        {project.tracks.map(track => (
           <div key={track.id} style={{ position: 'relative', height: 64 }}>
             {project.clips.filter(c => c.trackId === track.id).map(c => {
               const left = c.start * PIXELS_PER_SEC;
@@ -113,7 +115,7 @@ export default function Timeline() {
                     width,
                     top: 8,
                     height: 48,
-                    background: colors[(track as any).type],
+                    background: colors[track.type],
                   }}
                   onPointerDown={e => handleMove(e, c.id, left)}
                 >

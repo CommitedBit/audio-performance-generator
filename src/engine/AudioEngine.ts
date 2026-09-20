@@ -1,9 +1,18 @@
+import type { Clip } from '../types/timeline';
+
 export class AudioEngine {
   private ctx = new AudioContext();
   private buffers = new Map<string, AudioBuffer>(); // blobId -> decoded buffer
-  constructor(private getBlob: (id: string) => Promise<Blob | undefined>) {}
+  private getBlob: (id: string) => Promise<Blob | undefined>;
 
-  async play(clips: import('../types/timeline').Clip[], when = 0) {
+  // NOTE: written as an explicit field rather than a constructor parameter
+  // property because tsconfig sets `erasableSyntaxOnly`, which forbids the
+  // `constructor(private getBlob: ...)` shorthand (it emits runtime code).
+  constructor(getBlob: (id: string) => Promise<Blob | undefined>) {
+    this.getBlob = getBlob;
+  }
+
+  async play(clips: Clip[], when = 0) {
     const t0 = this.ctx.currentTime + when;
     for (const c of clips) {
       const b = await this.loadBuffer(c.blobId);

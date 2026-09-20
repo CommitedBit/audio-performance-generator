@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Project, Clip } from '../types/timeline';
+import type { Project, Clip } from '../types/timeline';
 
 export interface ProjectState {
   project: Project;
@@ -12,7 +12,7 @@ export interface ProjectState {
   setPlaying: (playing: boolean) => void;
 }
 
-const useProjectStore = create<ProjectState>((set, get) => ({
+const useProjectStore = create<ProjectState>(set => ({
   project: {
     id: 'project1',
     name: 'New Project',
@@ -62,6 +62,9 @@ const useProjectStore = create<ProjectState>((set, get) => ({
 
 export default useProjectStore;
 
-// selector that returns clips ordered by their start time
-export const orderedClips = (state: ProjectState) =>
-  [...state.project.clips].sort((a, b) => a.start - b.start);
+// Pure helper: returns clips ordered by start time.
+// NOTE: do NOT pass this to useProjectStore() as a selector. It allocates a new
+// array per call, and zustand v5 compares snapshots with Object.is, so an
+// unstable selector re-renders forever. Call it inside a useMemo instead.
+export const orderedClips = (clips: Clip[]) =>
+  [...clips].sort((a, b) => a.start - b.start);
