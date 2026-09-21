@@ -2,63 +2,85 @@
 #
 # Two bases, one Dockerfile.
 #   CPU  (default, works on arm64 Macs):  docker build backend
-#   CUDA (Proxmox GPU box):               docker build --build-arg BASE=cuda backend
+#   CUDA (the Proxmox GPU box):           docker build --build-arg BASE=cuda backend
 #
-# Model weights are deliberately NOT baked in. They are multi-GB and would make
-# the image unusable; they land in a named volume on the HF cache instead.
+# Python is provided by uv in both cases rather than by the distro, so the
+# interpreter version is a build arg and neither base needs a PPA.
+# Model weights are deliberately NOT baked in -- they are multi-GB and land in
+# a named volume on the HF cache instead.
 
-FROM python:3.11-slim-bookworm AS cpu-base
+# These two are used in FROM lines, so they MUST be declared before the first
+# FROM -- an ARG after it is stage-scoped and resolves to empty here.
+ARG BASE=cpu
+# CUDA_TAG must be >= 12.8 for Blackwell / RTX 50-series (sm_120). CUDA 12.4 and
+# earlier carry no sm_120 kernels and fail at runtime with
+# "no kernel image is available for execution on the device".
+ARG CUDA_TAG=13.0.2-cudnn-runtime-ubuntu24.04
+
+FROM debian:bookworm-slim AS cpu-base
 ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS cuda-base
-ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.11 python3.11-venv python3-pip \
-    && ln -sf /usr/bin/python3.11 /usr/local/bin/python \
-    && ln -sf /usr/bin/python3.11 /usr/local/bin/python3 \
-    && rm -rf /var/lib/apt/lists/*
+FROM nvidia/cuda:${CUDA_TAG} AS cuda-base
+# Must be a Blackwell-capable index. cu128 is the FIRST one carrying sm_120 and
+# it starts at torch 2.7.0; cu126 and older are Blackwell-dead.
+ARG TORCH_INDEX=cu130
+ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/${TORCH_INDEX}
 
-ARG BASE=cpu
 FROM ${BASE}-base AS runtime
 
-ENV PYTHONUNBUFFERED=1 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
     HF_HOME=/models \
     HF_XET_HIGH_PERFORMANCE=1 \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    UV_PYTHON_INSTALL_DIR=/opt/python \
+    PATH=/opt/venv/bin:$PATH
 
 # ffmpeg: torchaudio and several providers shell out to it for decoding.
-# libsndfile1: soundfile backend.
+# libsndfile1: the soundfile backend.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg libsndfile1 curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Chatterbox is the reason this is a knob. chatterbox-tts 0.1.7 hard-pins
+# torch==2.6.0 on Python < 3.14 -- and torch 2.6.0 has no wheel on ANY
+# sm_120-capable index. On Python >= 3.14 the same package declares
+# torch>=2.9.0, which does resolve to a Blackwell build.
+ARG PYTHON_VERSION=3.12
+RUN uv python install ${PYTHON_VERSION} \
+    && uv venv /opt/venv --python ${PYTHON_VERSION}
+
 WORKDIR /srv
 
-# EXTRAS selects which model stacks get installed. Keep it minimal to keep the
-# image small; "all" pulls torch + diffusers + transformers (several GB).
-#   EXTRAS=""            API only, stub providers  (~250 MB)
+# EXTRAS selects which model stacks get installed.
+#   EXTRAS=""            API only, stub providers  (~805 MB, measured)
 #   EXTRAS="tts"         + Chatterbox
-#   EXTRAS="music,sfx"   + MusicGen and Stable Audio
+#   EXTRAS="music,sfx"   + ACE-Step and Stable Audio 3
 #   EXTRAS="all"         everything
 ARG EXTRAS=""
 
+# Installing a Blackwell-capable torch FIRST stops the model packages' own pins
+# from resolving to a pre-sm_120 build behind your back.
+ARG TORCH_PIN=""
+
 COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system --index-strategy unsafe-best-match \
+    if [ -n "${TORCH_PIN}" ]; then \
+        uv pip install --index-strategy unsafe-best-match \
+            --extra-index-url "${TORCH_INDEX_URL}" ${TORCH_PIN} ; \
+    fi \
+    && uv pip install --index-strategy unsafe-best-match \
         --extra-index-url "${TORCH_INDEX_URL}" \
-        $( [ -n "${EXTRAS}" ] && echo ".[${EXTRAS}]" || echo "." ) \
-
+        $( [ -n "${EXTRAS}" ] && echo ".[${EXTRAS}]" || echo "." )
 
 COPY app ./app
 
-RUN mkdir -p /data /models && \
-    useradd --create-home --uid 10001 app && \
-    chown -R app:app /srv /data /models
+RUN mkdir -p /data /models \
+    && useradd --create-home --uid 10001 app \
+    && chown -R app:app /srv /data /models /opt/venv
 USER app
 
 EXPOSE 8000

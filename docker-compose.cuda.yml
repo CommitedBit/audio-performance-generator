@@ -10,6 +10,15 @@ services:
       args:
         BASE: cuda
         EXTRAS: all          # chatterbox + acestep + diffusers + transformers + torch
+        # Blackwell / RTX 50-series (sm_120) needs CUDA >= 12.8 and a torch from
+        # the cu128 index or later. CUDA 12.4 + cu124 has no sm_120 kernels and
+        # dies with "no kernel image is available for execution on the device".
+        CUDA_TAG: ${CUDA_TAG:-13.0.2-cudnn-runtime-ubuntu24.04}
+        TORCH_INDEX: ${TORCH_INDEX:-cu130}
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+        # Force a Blackwell-capable torch ahead of the model packages, whose
+        # own pins would otherwise resolve to a pre-sm_120 build.
+        TORCH_PIN: ${TORCH_PIN:-torch>=2.9 torchaudio>=2.9}
     environment:
       DEVICE: cuda
       DEV_STUB: "0"
