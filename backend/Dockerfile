@@ -98,6 +98,6 @@ EXPOSE 8000
 # ~10 GB of weights. Checks that fail during the grace period do not count
 # against `retries`, and one success ends it early, so this is free when fast.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15m --start-interval=5s --retries=3 \
-    CMD curl -fsS http://localhost:8000/health || exit 1
+    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
 
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
