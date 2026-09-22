@@ -16,6 +16,11 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
 
+        # The API key is injected here, server side, so it never reaches the
+        # browser bundle. Empty when API_KEY is unset, which the gateway
+        # treats as "auth disabled".
+        proxy_set_header X-API-Key "${API_KEY}";
+
         # Music generation can run for minutes; the defaults would cut it off.
         proxy_connect_timeout 60s;
         proxy_send_timeout    600s;

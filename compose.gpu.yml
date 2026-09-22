@@ -1,149 +1,104 @@
 # THE REAL DEPLOYMENT: Proxmox VM with an RTX 5090 passed through.
 #
-#   docker compose -f compose.gpu.yml up -d --build
+#   docker context create gpu --docker "host=ssh://user@gpu-vm"
+#   DOCKER_CONTEXT=gpu docker compose -f compose.gpu.yml up -d --build
 #
-# Why four backend containers instead of one: the three model stacks declare
-# mutually incompatible dependencies. From their own metadata --
+# Build ON the GPU box. Do not build on an arm64 Mac: nothing CUDA can even run
+# there, and compiling CUDA extensions under QEMU is a multi-day proposition.
 #
-#   chatterbox-tts 0.1.7   torch==2.6.0        transformers==5.2.0
-#   ACE-Step-1.5           torch==2.10.0+cu128 python >=3.11,<3.13
-#   stable-audio-3         torch==2.7.1        transformers>=5.8.0
+# ---------------------------------------------------------------------------
+# ONE model container, not three.
 #
-# -- the torch pins are exact and mutually exclusive, and the transformers
-# constraints contradict outright. One Python environment cannot hold them, so
-# each model gets its own image and the gateway presents them as one API.
+# The three model packages declare disjoint transformers ranges --
+#   ACE-Step-1.5   >=4.51.0,<4.58.0   chatterbox-tts  ==5.2.0   stable-audio-3  >=5.8.0
+# -- so no resolver satisfies them together, and they are installed --no-deps
+# against the hand-written pin set in backend/requirements-models.txt.
 #
-# All three pins resolve on the cu128 index at cp312, which is why every service
-# shares CUDA 12.8.1 and Python 3.12 while differing only in torch.
+# Their torch pins are NOT code constraints. ACE-Step declares torch==2.7.1+cu128
+# on win32 and torch==2.10.0+cu128 on linux from the SAME codebase, and none of
+# the three gates on torch.__version__ anywhere. torch 2.7.1's cu128 build ships
+# sm_120, so one torch serves all three.
 #
-# NOTE: stable-audio-3's own pyproject points torch at the cu126 index, which
-# has NO sm_120 kernels. TORCH_PIN below overrides that to cu128.
+# If the unified environment misbehaves, compose.gpu.split.yml gives ACE-Step
+# its own container. Nothing in the app changes -- the gateway makes topology a
+# compose-file decision.
+# ---------------------------------------------------------------------------
 
 name: audio-performance-generator
 
-x-gpu: &gpu
-  deploy:
-    resources:
-      reservations:
-        devices:
-          - driver: nvidia
-            count: all              # mutually exclusive with device_ids
-            capabilities: [gpu]     # mandatory; compose errors without it
-
-x-model-build: &model-build
-  context: ./backend
-  args:
-    BASE: cuda
-    CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
-    TORCH_INDEX: ${TORCH_INDEX:-cu128}
-    PYTHON_VERSION: "3.12"
-
-x-model-env: &model-env
-  DEVICE: cuda
-  DEV_STUB: "0"
-  DATA_DIR: /data
-  HF_HOME: /models
-  HF_TOKEN: ${HF_TOKEN:-}
-  MAX_CONCURRENT_JOBS: "1"
-  MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  # Blackwell cycles several multi-GB models through VRAM; this limits
-  # fragmentation across load/unload cycles.
-  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
-  # Needed only if a service compiles a CUDA extension. 12.0 == sm_120.
-  TORCH_CUDA_ARCH_LIST: "12.0"
-
 services:
-  # ---- the only service the frontend talks to --------------------------------
   gateway:
     build:
       context: ./backend
       args:
-        BASE: cpu                  # no models here, no GPU needed
+        BASE: cpu                     # no models here, no GPU needed
     command: ["python", "-m", "uvicorn", "app.gateway:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      UPSTREAMS: tts=http://tts:8000,music=http://music:8000,sfx=http://sfx:8000
+      UPSTREAMS: models=http://models:8000
       DATA_DIR: /data
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
-      FORWARD_TIMEOUT: ${FORWARD_TIMEOUT:-600}
+      FORWARD_TIMEOUT: ${FORWARD_TIMEOUT:-900}
+      API_KEY: ${API_KEY:-}
     volumes:
-      - data:/data                 # shared: gateway serves audio straight off it
+      - ${DATA_PATH:-/srv/story/data}:/data
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
-    depends_on: [tts, music, sfx]
+      # 127.0.0.1 on purpose: Docker's published ports BYPASS ufw, so a bare
+      # "8000:8000" would expose an unauthenticated GPU to the whole LAN.
+      # Reach it over Tailscale or an SSH tunnel instead.
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
+    depends_on: [models]
     restart: unless-stopped
 
-  # ---- voice: Chatterbox, MIT weights ---------------------------------------
-  tts:
+  models:
     build:
-      <<: *model-build
+      context: ./backend
       args:
         BASE: cuda
+        # >= 12.8 is mandatory for sm_120. 12.4/cu124 carry no sm_120 kernels.
         CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
         TORCH_INDEX: ${TORCH_INDEX:-cu128}
+        # 3.12 is the only interpreter inside ACE-Step's >=3.11,<3.13 cap that
+        # the other two also accept.
         PYTHON_VERSION: "3.12"
-        EXTRAS: tts
-        # chatterbox-tts pins torch==2.6.0, which has no wheel on any
-        # sm_120-capable index. This override is what makes it run on a 5090.
-        TORCH_PIN: torch==2.9.0+cu128 torchaudio==2.9.0+cu128
-    environment:
-      <<: *model-env
-      PROVIDERS: chatterbox
-    volumes:
-      - models:/models
-      - data:/data
-    <<: *gpu
-    restart: unless-stopped
-
-  # ---- music: ACE-Step 1.5, MIT weights -------------------------------------
-  music:
-    build:
-      <<: *model-build
-      args:
-        BASE: cuda
-        CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
-        TORCH_INDEX: ${TORCH_INDEX:-cu128}
-        PYTHON_VERSION: "3.12"
-        EXTRAS: music
-        TORCH_PIN: torch==2.10.0+cu128 torchaudio==2.10.0+cu128
-    environment:
-      <<: *model-env
-      PROVIDERS: acestep
-      # 'pt' avoids the nano-vllm LM backend, which is reported broken on
-      # sm_120. Switch to vllm only once you have confirmed it works.
-      ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
-      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
-    volumes:
-      - models:/models
-      - data:/data
-    <<: *gpu
-    restart: unless-stopped
-
-  # ---- sfx: Stable Audio 3 ---------------------------------------------------
-  sfx:
-    build:
-      <<: *model-build
-      args:
-        BASE: cuda
-        CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
-        TORCH_INDEX: ${TORCH_INDEX:-cu128}
-        PYTHON_VERSION: "3.12"
-        EXTRAS: sfx
-        # Its pyproject pins torch==2.7.1 from the cu126 index. Same version,
-        # cu128 build -- which is the one that has sm_120 kernels.
+        # torch 2.7.1+cu128 is built with sm_120 in its arch list.
         TORCH_PIN: torch==2.7.1+cu128 torchaudio==2.7.1+cu128
+        # Commit-pinned so rebuilds are reproducible. ACE-Step needs a main
+        # commit after 2026-07-23, not tag v0.1.8.
+        MODELS: >-
+          chatterbox-tts==0.1.7
+          git+https://github.com/ace-step/ACE-Step-1.5@ca1e85fe9430
+          git+https://github.com/Stability-AI/stable-audio-3@779434a90819
     environment:
-      <<: *model-env
-      PROVIDERS: stable-audio-3-sfx,stable-audio-3-music
-      # Default is the small checkpoints: no Flash Attention requirement, and
-      # the medium checkpoint's FA2 path is UNVERIFIED on sm_120 with a SILENT
-      # failure mode (static instead of an error). Only set this once you have
-      # confirmed medium produces real audio on this card.
+      DEVICE: cuda
+      DEV_STUB: "0"
+      DATA_DIR: /data
+      HF_HOME: /models
+      HF_TOKEN: ${HF_TOKEN:-}
+      PROVIDERS: ${PROVIDERS:-auto}
+      MAX_CONCURRENT_JOBS: "1"
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Several multi-GB models cycle through VRAM; limits fragmentation.
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      TORCH_CUDA_ARCH_LIST: "12.0"
+      # 'pt' avoids nano-vllm, which is why ACE-Step pins torch at all and is
+      # reported broken on sm_120.
+      ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
       SA3_MODEL: ${SA3_MODEL:-}
     volumes:
+      # Named volume for the HF cache: daemon-side, and symlink-capable for
+      # HF's blobs/snapshots layout. A bind mount here would resolve to a path
+      # on the REMOTE host and is easy to get silently wrong.
       - models:/models
-      - data:/data
-    <<: *gpu
+      # Absolute bind mount for output you want to find outside Docker.
+      - ${DATA_PATH:-/srv/story/data}:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all            # mutually exclusive with device_ids
+              capabilities: [gpu]   # mandatory; compose errors without it
     restart: unless-stopped
 
   frontend:
@@ -151,11 +106,13 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE: /api
+    environment:
+      # Forwarded to the gateway by nginx; never enters the browser bundle.
+      API_KEY: ${API_KEY:-}
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${BIND_ADDR:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
     depends_on: [gateway]
     restart: unless-stopped
 
 volumes:
-  models:      # HF weight cache, tens of GB; survives rebuilds
-  data:        # generated audio + voice references, shared by every service
+  models:     # HF weight cache: ~31 GB for these three

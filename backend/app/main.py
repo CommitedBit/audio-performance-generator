@@ -22,9 +22,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import storage
+from .auth import api_key_middleware
 from .config import get_settings
 from .jobs import Job, JobQueue, JobStatus
-from .providers.base import Capability, GenerateRequest
+from .providers.base import Capability, GenerateRequest, check_audio_sane
 from .registry import get_registry
 from .schemas import GenerateBody, SpeechBody
 
@@ -69,7 +70,12 @@ async def _sweep_idle_models() -> None:
             log.exception("idle sweep failed")
 
 
-app = FastAPI(title="Audio Performance Generator API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Audio Performance Generator API",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+app.middleware("http")(api_key_middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -128,6 +134,13 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
     def _work(job: Job) -> dict:
         job.message = f"generating with {provider.id}"
         result = provider.generate(req)
+
+        # Fail loudly on silent/degenerate output rather than storing a clip of
+        # nothing and reporting success. Only meaningful for WAV; the cloud
+        # providers return mp3 and are skipped.
+        if result.mime == "audio/wav":
+            check_audio_sane(result.audio)
+
         audio_id = storage.save_audio(
             result.audio,
             suffix=".mp3" if result.mime == "audio/mpeg" else ".wav",

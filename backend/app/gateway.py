@@ -30,6 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import storage
+from .auth import api_key_middleware
 from .config import get_settings
 from .schemas import GenerateBody, SpeechBody
 
@@ -57,7 +58,11 @@ DISCOVERY_TIMEOUT = float(os.getenv("DISCOVERY_TIMEOUT", "10"))
 # Generous: a TTS request waits inline, and the first one may load weights.
 FORWARD_TIMEOUT = float(os.getenv("FORWARD_TIMEOUT", "600"))
 
-app = FastAPI(title="Audio Performance Generator Gateway", version="0.1.0")
+app = FastAPI(
+    title="Audio Performance Generator Gateway",
+    version="0.1.0",
+)
+app.middleware("http")(api_key_middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

@@ -55,22 +55,26 @@ RUN uv python install ${PYTHON_VERSION} \
 
 WORKDIR /srv
 
-# EXTRAS selects which model stacks get installed.
-#   EXTRAS=""            API only, stub providers  (~805 MB, measured)
-#   EXTRAS="tts"         + Chatterbox
-#   EXTRAS="music,sfx"   + ACE-Step and Stable Audio 3
-#   EXTRAS="all"         everything
+# EXTRAS installs optional API-side extras only (the stub providers need none).
 ARG EXTRAS=""
+
+# MODELS is the model packages to install WITH --no-deps, space separated.
+# --no-deps is mandatory, not an optimisation: the three packages declare
+# disjoint transformers ranges (>=4.51,<4.58 / ==5.2.0 / >=5.8.0) that no
+# resolver can satisfy together. Their real runtime deps are declared in
+# requirements-models.txt instead.
+#
+# Git refs are pinned to commits rather than main so a rebuild is reproducible.
+ARG MODELS=""
 
 # TORCH_PIN is applied as a dependency OVERRIDE, not merely installed first.
 # Installing first is not enough: the model packages declare exact torch pins
-# (chatterbox-tts torch==2.6.0, ACE-Step torch==2.10.0+cu128, stable-audio-3
-# torch==2.7.1) and the resolver will happily downgrade to satisfy them --
-# including to versions with no sm_120 kernels at all. An override file is what
-# makes the pin stick. Space-separate multiple specs.
+# and the resolver will downgrade straight back to satisfy them -- including to
+# versions with no sm_120 kernels at all. An override file is what makes it
+# stick. Space-separate multiple specs.
 ARG TORCH_PIN=""
 
-COPY pyproject.toml ./
+COPY pyproject.toml requirements-models.txt ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -n "${TORCH_PIN}" ]; then \
         printf '%s\n' ${TORCH_PIN} > /tmp/overrides.txt ; \
@@ -83,6 +87,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         --extra-index-url "${TORCH_INDEX_URL}" \
         --overrides /tmp/overrides.txt \
         $( [ -n "${EXTRAS}" ] && echo ".[${EXTRAS}]" || echo "." ) \
+    && if [ -n "${MODELS}" ]; then \
+        uv pip install --index-strategy unsafe-best-match \
+            --extra-index-url "${TORCH_INDEX_URL}" \
+            --overrides /tmp/overrides.txt \
+            -r requirements-models.txt \
+        && uv pip install --no-deps ${MODELS} ; \
+    fi \
     && python -c "import torch; print('torch', torch.__version__)" 2>/dev/null || true
 
 COPY app ./app

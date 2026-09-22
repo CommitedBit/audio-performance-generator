@@ -14,16 +14,23 @@ generation within a single unified model":
     8 GB      TWO specialists: small-sfx + small-music
               (~2.4 GB peak each, 120s max)
 
-TWO OPERATIONAL TRAPS, both worth knowing before the first run:
+FLASH ATTENTION IS OPTIONAL, despite what the README says. Verified against
+stable_audio_3/models/transformer.py: the flash_attn import sits in a
+try/except that prints "flash_attn not installed, disabling Flash Attention"
+and sets the functions to None -- there is no raise. apply_attn then falls
+through a four-tier cascade its own comments describe as math-equivalent:
 
-1. FLASH ATTENTION 2 IS MANDATORY for the medium checkpoints, and its absence
-   fails SILENTLY -- output collapses to static rather than raising. Requires
-   compute capability >= 8.0 (A100/RTX 3090/RTX 4090 class). Turing (sm_75) and
-   older cannot run medium at all. The small checkpoints do not list this
-   requirement, which is a good reason to prefer them on older cards.
+    flex_attention with a band block mask
+      -> chunked-halo masked SDPA  ("math-equivalent, ~30x faster than tier 4")
+      -> full masked SDPA          (last resort, high memory)
 
-2. The weights are GATED on HuggingFace. Accept the terms on the model page and
-   supply HF_TOKEN at RUNTIME -- do not bake a token into the image.
+The "output collapses to static" failure that the README's flash-attn warning
+refers to is the bug PR #21 fixed in May 2026; only the documentation is stale.
+So this provider does NOT require flash-attn, which matters on sm_120 where a
+prebuilt wheel would pin the whole image to one torch build.
+
+The weights are GATED on HuggingFace: accept the terms on the model page and
+supply HF_TOKEN at RUNTIME. Never bake a token into the image.
 """
 from __future__ import annotations
 
@@ -75,9 +82,6 @@ class StableAudio3Provider(Provider):
     def unavailable_reason(self) -> str:
         if not self.available():
             return "neither stable-audio-3 nor diffusers is installed in this image"
-        if self.tier == "medium" and not _flash_attn_present():
-            # Surfaced rather than left to corrupt audio silently.
-            return "flash-attn is required for the medium checkpoint; without it output is static"
         if not os.getenv("HF_TOKEN"):
             return "HF_TOKEN is not set (stable-audio-3 weights are gated)"
         return ""
@@ -89,12 +93,9 @@ class StableAudio3Provider(Provider):
         dtype = torch.float16 if device == "cuda" else torch.float32
         token = os.getenv("HF_TOKEN") or None
 
-        if self.tier == "medium" and not _flash_attn_present():
-            raise RuntimeError(
-                "flash-attn is not installed and the Stable Audio 3 medium checkpoint "
-                "silently produces static without it; install flash-attn or switch "
-                "SA3_MODEL to a small checkpoint"
-            )
+        if not _flash_attn_present():
+            # Informational only: the SDPA fallback is math-equivalent, just slower.
+            log.info("flash-attn absent; using the SDPA attention fallback (slower, same output)")
 
         log.info("loading %s on %s (peak ~%.1f GB)", self.model_id, device, PEAK_VRAM_GB[self.tier])
 

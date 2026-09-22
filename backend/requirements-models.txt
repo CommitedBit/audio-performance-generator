@@ -1,0 +1,67 @@
+# Unified model environment for the GPU box (Blackwell / sm_120).
+#
+# WHY A HAND-WRITTEN PIN SET RATHER THAN EXTRAS:
+# the three model packages declare disjoint transformers ranges --
+#     ACE-Step-1.5    transformers>=4.51.0,<4.58.0
+#     chatterbox-tts  transformers==5.2.0
+#     stable-audio-3  transformers>=5.8.0
+# -- so no resolver can ever satisfy all three together. They are installed
+# with --no-deps and their real runtime dependencies are declared here.
+#
+# Their torch pins are NOT code constraints: ACE-Step declares torch==2.7.1+cu128
+# on win32 and torch==2.10.0+cu128 on linux from the same codebase, and none of
+# the three gates on torch.__version__ anywhere in its source. torch 2.7.1's
+# cu128 build carries sm_120, so one torch serves all three.
+#
+# THIS COMBINATION IS NOT BLESSED BY ANY OF THE THREE PACKAGES. It is derived
+# from their actual import surfaces, and it needs validating on first run --
+# see "Validating the unified environment" in the README. If it fails, switch
+# to compose.gpu.split.yml, which gives ACE-Step its own environment.
+
+# ---- core numerics -----------------------------------------------------------
+# torch/torchaudio come from TORCH_PIN at build time so the cu128 index applies.
+numpy>=2.2.0,<2.3.0
+scipy>=1.11
+
+# ---- shared model plumbing ---------------------------------------------------
+# 4.57.x satisfies ACE-Step's declared range and carries every symbol the other
+# two actually import (T5GemmaEncoderModel for SA3; the Llama/GPT2 stack,
+# GenerationMixin and the logits processors for Chatterbox).
+transformers>=4.57.0,<4.58.0
+diffusers>=0.37.0
+accelerate>=0.31.0
+safetensors>=0.4
+# huggingface-hub 1.x moved APIs several of these still call.
+huggingface-hub>=0.34,<1.0
+tokenizers>=0.20
+sentencepiece
+einops
+omegaconf
+
+# ---- audio io ----------------------------------------------------------------
+soundfile
+librosa
+# torchcodec is deliberately absent: soundfile + ffmpeg cover decoding and
+# torchcodec ties itself to specific torch builds.
+
+# ---- chatterbox runtime ------------------------------------------------------
+conformer
+resemble-perth
+s3tokenizer
+
+# ---- stable-audio-3 runtime --------------------------------------------------
+# flash-attn is NOT listed on purpose. stable_audio_3/models/transformer.py
+# wraps its import in try/except and falls back through flex_attention ->
+# chunked-halo SDPA -> full masked SDPA, which its own comments describe as
+# math-equivalent. Installing flash-attn is an optional speed-up, not a
+# correctness requirement, and on sm_120 it would pin the whole image to one
+# prebuilt wheel.
+pytorch-lightning>=2.5
+alias-free-torch
+descript-audio-codec
+
+# ---- ace-step runtime --------------------------------------------------------
+# nano-vllm is NOT listed: it is the reason ACE-Step pins torch at all, and it
+# is reported broken on sm_120. Use ACESTEP_BACKEND=pt.
+py3langid
+pypinyin

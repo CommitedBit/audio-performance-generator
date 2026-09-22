@@ -83,6 +83,42 @@ def pcm_to_wav(samples, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+class SilentOutputError(RuntimeError):
+    """Raised when a model returns audio that is silent or degenerate.
+
+    Several failure modes in this stack produce a clean exit code and unusable
+    audio rather than an error: an amplitude-collapsed decode, a deprecated
+    TensorRT engine noise-wash, a model loaded onto the wrong device. A caller
+    polling a job would see status=done and a clip of nothing. Cheap to check,
+    and it converts a confusing silent failure into a legible one.
+    """
+
+
+def check_audio_sane(data: bytes, *, rms_floor: float = 1e-4) -> None:
+    """Reject silent or DC-constant output. Raises SilentOutputError."""
+    import numpy as np
+
+    with wave.open(io.BytesIO(data), "rb") as wf:
+        frames = wf.readframes(wf.getnframes())
+    if not frames:
+        raise SilentOutputError("model returned zero audio frames")
+
+    arr = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    if arr.size == 0:
+        raise SilentOutputError("model returned zero audio samples")
+
+    rms = float(np.sqrt(np.mean(arr**2)))
+    if rms < rms_floor:
+        raise SilentOutputError(
+            f"output is effectively silent (rms={rms:.2e} < {rms_floor:.0e}); "
+            "check the model loaded on the right device and produced real audio"
+        )
+    # A constant signal has energy but no information -- catches DC offset and
+    # a stuck decoder, which an RMS check alone would pass.
+    if float(np.std(arr)) < rms_floor:
+        raise SilentOutputError(f"output is a constant signal (std={float(np.std(arr)):.2e})")
+
+
 def wav_duration(data: bytes) -> float:
     with wave.open(io.BytesIO(data), "rb") as wf:
         frames = wf.getnframes()
