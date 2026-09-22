@@ -62,19 +62,28 @@ WORKDIR /srv
 #   EXTRAS="all"         everything
 ARG EXTRAS=""
 
-# Installing a Blackwell-capable torch FIRST stops the model packages' own pins
-# from resolving to a pre-sm_120 build behind your back.
+# TORCH_PIN is applied as a dependency OVERRIDE, not merely installed first.
+# Installing first is not enough: the model packages declare exact torch pins
+# (chatterbox-tts torch==2.6.0, ACE-Step torch==2.10.0+cu128, stable-audio-3
+# torch==2.7.1) and the resolver will happily downgrade to satisfy them --
+# including to versions with no sm_120 kernels at all. An override file is what
+# makes the pin stick. Space-separate multiple specs.
 ARG TORCH_PIN=""
 
 COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -n "${TORCH_PIN}" ]; then \
+        printf '%s\n' ${TORCH_PIN} > /tmp/overrides.txt ; \
         uv pip install --index-strategy unsafe-best-match \
             --extra-index-url "${TORCH_INDEX_URL}" ${TORCH_PIN} ; \
+    else \
+        : > /tmp/overrides.txt ; \
     fi \
     && uv pip install --index-strategy unsafe-best-match \
         --extra-index-url "${TORCH_INDEX_URL}" \
-        $( [ -n "${EXTRAS}" ] && echo ".[${EXTRAS}]" || echo "." )
+        --overrides /tmp/overrides.txt \
+        $( [ -n "${EXTRAS}" ] && echo ".[${EXTRAS}]" || echo "." ) \
+    && python -c "import torch; print('torch', torch.__version__)" 2>/dev/null || true
 
 COPY app ./app
 

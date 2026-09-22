@@ -1,48 +1,48 @@
-# Default stack: CPU-only. Runs anywhere, including an arm64 Mac.
-# For the Proxmox GPU box, add the CUDA override:
-#   docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d
-name: audio-performance-generator
+# LOCAL DEVELOPMENT ONLY. No GPU, no model weights, no downloads.
+#
+#   docker compose up --build        ->  http://localhost:8080
+#
+# This exists to exercise the API surface, the job queue and the frontend
+# without a GPU. It runs the tone-generating stub providers, NOT real models.
+# The full stack runs on the Proxmox box -- see compose.gpu.yml.
+#
+# It deliberately routes through the same gateway as production so the API
+# semantics are identical here and there (job ids are prefixed with their
+# service in both), rather than letting dev quietly diverge.
+
+name: audio-performance-generator-dev
 
 services:
-  backend:
+  gateway:
     build:
       context: ./backend
       args:
         BASE: cpu
-        EXTRAS: ""          # "" = stub providers only; see docker-compose.cuda.yml
+    command: ["python", "-m", "uvicorn", "app.gateway:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      DEVICE: ${DEVICE:-cpu}
+      UPSTREAMS: stub=http://stub:8000
       DATA_DIR: /data
-      HF_HOME: /models
-      PROVIDERS: ${PROVIDERS:-auto}
-      DEV_STUB: ${DEV_STUB:-1}
-      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
-      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-600}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # Optional cloud fallback. Unset means the provider is simply not offered.
-      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
-      # Required at RUNTIME for gated repos (Stable Audio 3). Never baked in.
-      HF_TOKEN: ${HF_TOKEN:-}
-      # Pin one checkpoint for both music and sfx on a 12 GB+ card.
-      SA3_MODEL: ${SA3_MODEL:-}
-      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
-      ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     volumes:
-      - models:/models       # HF cache: multi-GB weights, survives rebuilds
-      - data:/data           # generated audio + voice references
+      - data:/data
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    depends_on: [stub]
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      # A first boot on an empty volume may download ~10 GB of weights.
-      # Failures during start_period do not count against retries, and one
-      # success ends it early -- so this is free when startup is fast.
-      start_period: 15m
-      start_interval: 5s
+
+  stub:
+    build:
+      context: ./backend
+      args:
+        BASE: cpu
+    environment:
+      DEVICE: cpu
+      DEV_STUB: "1"
+      DATA_DIR: /data
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - data:/data
+    restart: unless-stopped
 
   frontend:
     build:
@@ -51,10 +51,8 @@ services:
         VITE_API_BASE: /api
     ports:
       - "${FRONTEND_PORT:-8080}:80"
-    depends_on:
-      - backend
+    depends_on: [gateway]
     restart: unless-stopped
 
 volumes:
-  models:
   data:
