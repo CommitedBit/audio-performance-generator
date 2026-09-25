@@ -112,9 +112,11 @@ class Registry:
             return []
         freed = []
         for p in self._providers.values():
-            if p.loaded and p.idle_seconds > timeout:
-                log.info("unloading %s after %.0fs idle", p.id, p.idle_seconds)
-                p.unload()
+            idle = p.idle_seconds
+            # Checked and unloaded atomically by the provider itself, and
+            # skipped while a generation is still using the model.
+            if p.unload_if_idle(timeout):
+                log.info("unloaded %s after %.0fs idle", p.id, idle)
                 freed.append(p.id)
         return freed
 

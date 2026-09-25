@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import abc
+import contextlib
 import enum
 import io
 import threading
@@ -146,9 +147,11 @@ class Provider(abc.ABC):
     def __init__(self) -> None:
         self._model = None
         self._last_used: float = 0.0
-        # Guards the check-and-load in load(). Per instance, so two different
-        # models can still load in parallel.
+        # Guards the check-and-load in load(), and the in-use count below. Per
+        # instance, so two different models can still load in parallel.
         self._load_lock = threading.Lock()
+        # Generations currently running on this provider's model.
+        self._active = 0
 
     # -- capability reporting -------------------------------------------------
 
@@ -185,6 +188,39 @@ class Provider(abc.ABC):
                 model = self._model
         self._last_used = time.monotonic()
         return model
+
+    @contextlib.contextmanager
+    def in_use(self):
+        """Mark this provider busy for the length of one generation.
+
+        The idle sweeper skips a busy provider, so a model is never unloaded
+        out from under a running job. Before this, idleness was measured from
+        load() -- the START of a job -- with no notion of work in flight, so a
+        generation outlasting MODEL_IDLE_TIMEOUT could be unloaded mid-run, and
+        with MAX_CONCURRENT_JOBS > 1 the next request would then load a second
+        multi-GB copy while the first job still held the original.
+        """
+        with self._load_lock:
+            self._active += 1
+        try:
+            yield self
+        finally:
+            with self._load_lock:
+                self._active -= 1
+                # Idle time counts from when the work finished.
+                self._last_used = time.monotonic()
+
+    def unload_if_idle(self, timeout: float) -> bool:
+        """Unload only if no generation is using the model and it has sat idle
+        past `timeout`. The check and the unload happen under the same lock
+        that in_use() and load() take, so a job cannot start in between."""
+        with self._load_lock:
+            if self._active or self._model is None or not self._last_used:
+                return False
+            if time.monotonic() - self._last_used <= timeout:
+                return False
+            self.unload()
+            return True
 
     def unload(self) -> None:
         if self._model is None:

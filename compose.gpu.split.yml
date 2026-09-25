@@ -50,6 +50,7 @@ services:
       TORCH_CUDA_ARCH_LIST: "12.0"
       ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
       ACESTEP_MODEL: ${ACESTEP_MODEL:-}
+      ACESTEP_LM_MODEL: ${ACESTEP_LM_MODEL:-}
     volumes:
       - models:/models
       - ${DATA_PATH:-/srv/story/data}:/data

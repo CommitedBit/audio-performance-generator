@@ -119,6 +119,7 @@ services:
       ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
       # Blank means the provider's default checkpoint.
       ACESTEP_MODEL: ${ACESTEP_MODEL:-}
+      ACESTEP_LM_MODEL: ${ACESTEP_LM_MODEL:-}
       SA3_MODEL: ${SA3_MODEL:-}
     volumes:
       # Named volume for the HF cache: daemon-side, and symlink-capable for

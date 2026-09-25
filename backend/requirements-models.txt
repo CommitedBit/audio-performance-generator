@@ -69,6 +69,9 @@ pytorch-lightning>=2.5
 # compiling it from source and failed without cmake.
 
 # ---- ace-step runtime --------------------------------------------------------
+# loguru is imported at module level across ACE-Step (inference, llm_inference,
+# model_downloader), so without it the package cannot even be imported.
+loguru
 # nano-vllm is NOT listed: it is the reason ACE-Step pins torch at all, and it
 # is reported broken on sm_120. Use ACESTEP_BACKEND=pt.
 py3langid

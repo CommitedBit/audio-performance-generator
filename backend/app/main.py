@@ -134,7 +134,10 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
     """Build the thread-side callable the job queue will execute."""
     def _work(job: Job) -> dict:
         job.message = f"generating with {provider.id}"
-        result = provider.generate(req)
+        # Held for the whole generation so the idle sweeper cannot unload the
+        # model while this job is still running on it.
+        with provider.in_use():
+            result = provider.generate(req)
 
         # Fail loudly on silent/degenerate output rather than storing a clip of
         # nothing and reporting success. Only meaningful for WAV; the cloud
