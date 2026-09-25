@@ -10,7 +10,15 @@ class GenerateBody(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=5000, description="Text to speak, or a description of the audio")
     provider: str | None = Field(None, description="Provider id; omitted means the server's default for this capability")
     voice_id: str | None = None
-    seconds: float | None = Field(None, gt=0, le=300)
+    # No global upper bound: providers advertise their own (ACE-Step 600 s,
+    # Stable Audio 3 medium 380 s, ElevenLabs SFX 22 s) and the model service
+    # validates against the resolved provider's `seconds` param. A single cap
+    # here was wrong both ways -- it rejected lengths providers support and
+    # accepted lengths they do not.
+    seconds: float | None = Field(
+        None, gt=0,
+        description="Clip length; must fit the provider's advertised range. Ignored by providers that take no duration.",
+    )
     seed: int | None = None
     params: dict[str, Any] = Field(default_factory=dict)
 

@@ -18,6 +18,13 @@ const CAPABILITIES: { id: Capability; label: string; placeholder: string }[] = [
   { id: 'music', label: 'Music', placeholder: 'Slow melancholic piano, sparse, reverb…' },
 ];
 
+function formatRange(lo: number, hi: number): string {
+  const n = (x: number) => String(Math.round(x * 100) / 100);
+  if (Number.isFinite(lo) && Number.isFinite(hi)) return `${n(lo)}–${n(hi)}`;
+  if (Number.isFinite(hi)) return `up to ${n(hi)}`;
+  return `at least ${n(lo)}`;
+}
+
 export default function GenerationPanel() {
   const addClip = useProjectStore(s => s.addClip);
   const project = useProjectStore(s => s.project);
@@ -55,11 +62,40 @@ export default function GenerationPanel() {
     if (!stillValid) setVoiceId(provider.voices[0]?.id ?? '');
   }, [provider, voiceId]);
 
+  // Duration bounds come from the provider, not a fixed range: ACE-Step takes
+  // 10-600 s, ElevenLabs SFX at most 22 s. A provider with no `seconds` param
+  // takes no duration at all, so the control is hidden and nothing is sent --
+  // matching the server, which ignores seconds for such providers.
+  const secondsSpec = useMemo(
+    () => provider?.params.find(p => p.name === 'seconds'),
+    [provider]
+  );
+  const minSeconds = secondsSpec?.minimum ?? 0;
+  const maxSeconds = secondsSpec?.maximum ?? Infinity;
+
+  // On switching provider, keep the chosen length if it still fits, otherwise
+  // take the new provider's default. Keyed on provider only, so typing a
+  // partial number (e.g. "3" on the way to "30") is never clobbered.
+  useEffect(() => {
+    const spec = provider?.params.find(p => p.name === 'seconds');
+    if (!spec) return;
+    const lo = spec.minimum ?? -Infinity;
+    const hi = spec.maximum ?? Infinity;
+    setSeconds(prev => (prev >= lo && prev <= hi ? prev : Number(spec.default)));
+  }, [provider]);
+
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const handleGenerate = async () => {
     const prompt = text.trim();
     if (!prompt || !provider) return;
+
+    if (secondsSpec && !(Number.isFinite(seconds) && seconds >= minSeconds && seconds <= maxSeconds)) {
+      // Checked here rather than left to the server so an out-of-range value
+      // never creates a job that can only fail.
+      setError(`Length must be ${formatRange(minSeconds, maxSeconds)} seconds for ${provider.name}`);
+      return;
+    }
 
     const trackId = trackIdForType(project, capability);
     if (!trackId) {
@@ -80,7 +116,7 @@ export default function GenerationPanel() {
           prompt,
           provider: provider.id,
           voiceId: capability === 'voice' ? voiceId : undefined,
-          seconds: capability === 'voice' ? undefined : seconds,
+          seconds: secondsSpec ? seconds : undefined,
         },
         ac.signal
       );
@@ -185,18 +221,20 @@ export default function GenerationPanel() {
           </label>
         )}
 
-        {capability !== 'voice' && (
+        {secondsSpec && (
           <label>
             Length
             <input
               type="number"
-              min={1}
-              max={120}
+              min={secondsSpec.minimum ?? undefined}
+              max={secondsSpec.maximum ?? undefined}
+              step="any"
               value={seconds}
               onChange={e => setSeconds(Number(e.target.value))}
               disabled={busy}
+              aria-label="Length in seconds"
             />
-            s
+            s <span className="muted small">({formatRange(minSeconds, maxSeconds)})</span>
           </label>
         )}
 

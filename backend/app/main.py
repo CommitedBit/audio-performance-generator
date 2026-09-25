@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -177,6 +178,37 @@ def _resolve(capability: Capability, provider_id: str | None):
         raise HTTPException(503, str(exc)) from exc
 
 
+def _validated_seconds(provider, seconds: float | None, params: dict) -> float | None:
+    """Check a requested duration against the resolved provider's own bounds.
+
+    Providers advertise a `seconds` param with a range. When one does, the
+    request must fall inside it -- a clearer failure than a job that dies later
+    inside the model or the cloud API. When a provider advertises no duration
+    at all (TTS length follows the text), the value is dropped rather than
+    passed on: code that never declared a bound must not receive an unbounded
+    number. Both the top-level field and params["seconds"] are covered, since
+    providers read either.
+    """
+    raw = seconds if seconds is not None else params.get("seconds")
+    spec = next((p for p in provider.params() if p.name == "seconds"), None)
+    if spec is None:
+        params.pop("seconds", None)
+        return None
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(422, f"seconds must be a number, got {raw!r}") from None
+    lo, hi = spec.minimum, spec.maximum
+    if not math.isfinite(value) or (lo is not None and value < lo) or (hi is not None and value > hi):
+        span = f"{lo:g}-{hi:g}" if lo is not None and hi is not None else (
+            f">= {lo:g}" if lo is not None else f"<= {hi:g}")
+        raise HTTPException(422, f"seconds must be {span} for {provider.id} (got {raw})")
+    params["seconds"] = value
+    return value
+
+
 def _job_payload(job: Job) -> dict:
     payload = job.public()
     payload["audio_url"] = f"/v1/audio/{job.audio_id}" if job.audio_id else None
@@ -190,13 +222,15 @@ async def generate_speech(body: SpeechBody, wait: bool = Query(True)):
         raise HTTPException(422, "prompt/input is empty")
 
     provider = _resolve(Capability.VOICE, body.provider)
+    params = dict(body.params)
+    seconds = _validated_seconds(provider, body.seconds, params)
     req = GenerateRequest(
         prompt=prompt,
         capability=Capability.VOICE,
         voice_id=body.resolved_voice(),
-        seconds=body.seconds,
+        seconds=seconds,
         seed=body.seed,
-        params=body.params,
+        params=params,
     )
     job = queue.submit("speech", _run_generation(provider, req, "voice"),
                        meta={"provider": provider.id})
@@ -209,13 +243,15 @@ async def generate_speech(body: SpeechBody, wait: bool = Query(True)):
 
 async def _enqueue(capability: Capability, body: GenerateBody, kind: str):
     provider = _resolve(capability, body.provider)
+    params = dict(body.params)
+    seconds = _validated_seconds(provider, body.seconds, params)
     req = GenerateRequest(
         prompt=body.prompt,
         capability=capability,
         voice_id=body.voice_id,
-        seconds=body.seconds,
+        seconds=seconds,
         seed=body.seed,
-        params=body.params,
+        params=params,
     )
     job = queue.submit(kind, _run_generation(provider, req, kind), meta={"provider": provider.id})
     return JSONResponse(_job_payload(job), status_code=202)
