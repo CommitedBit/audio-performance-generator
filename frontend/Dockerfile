@@ -12,10 +12,9 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
 COPY --from=build /app/dist /usr/share/nginx/html
-# nginx:alpine runs envsubst over /etc/nginx/templates/*.template at start,
-# which is how API_KEY reaches the proxy without being baked into the image.
-COPY default.conf.template /etc/nginx/templates/default.conf.template
-ENV API_KEY=""
+# A plain config, not a template: nginx no longer handles the API key (see
+# nginx.conf), so there is nothing to substitute at start.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 # 127.0.0.1, not localhost: localhost resolves to ::1 first and nginx listens
 # only on IPv4, so the probe would get ECONNREFUSED against a healthy server.

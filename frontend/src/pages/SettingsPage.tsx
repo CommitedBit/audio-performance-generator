@@ -4,17 +4,19 @@ import {
   type VoiceReference,
   deleteVoiceReference,
   fetchHealth,
+  getApiKey,
   listVoiceReferences,
+  setApiKey,
   uploadVoiceReference,
 } from '../api/client';
 import { useModels } from '../hooks/useModels';
 
 /**
- * Server status and voice-clone reference management.
+ * Server access, status, and voice-clone reference management.
  *
- * This replaces the old page whose only control was an ElevenLabs API key
- * input backed by localStorage. Credentials now live in the server's
- * environment, so there is nothing secret for the browser to hold.
+ * Model-provider credentials (ElevenLabs, HuggingFace) live in the server's
+ * environment and never reach the browser. The one thing the browser holds is
+ * this server's own access key, when the operator sets API_KEY.
  */
 export default function SettingsPage() {
   const { models, loading, error, refresh } = useModels();
@@ -23,6 +25,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [keyInput, setKeyInput] = useState(getApiKey());
+  const [keySaved, setKeySaved] = useState(getApiKey() !== '');
 
   useEffect(() => {
     const ac = new AbortController();
@@ -57,6 +61,16 @@ export default function SettingsPage() {
     }
   };
 
+  const saveKey = (value: string) => {
+    setApiKey(value);
+    setKeyInput(value.trim());
+    setKeySaved(value.trim() !== '');
+    setNotice(value.trim() ? 'API key saved in this browser' : 'API key cleared');
+    // Everything on this page may have failed with 401 before the key existed.
+    refresh();
+    void reloadVoices();
+  };
+
   const onDelete = async (id: string) => {
     setBusy(true);
     try {
@@ -70,6 +84,24 @@ export default function SettingsPage() {
 
   return (
     <div className="panel">
+      <h2>Access key</h2>
+      <p className="muted small">
+        Only needed when the server sets <code>API_KEY</code>. Stored in this browser and sent
+        with every request.
+      </p>
+      <div className="row">
+        <input
+          type="password"
+          value={keyInput}
+          onChange={e => setKeyInput(e.target.value)}
+          placeholder={keySaved ? '' : 'not set'}
+          autoComplete="off"
+          aria-label="API key"
+        />
+        <button onClick={() => saveKey(keyInput)}>Save</button>
+        {keySaved && <button onClick={() => saveKey('')}>Clear</button>}
+      </div>
+
       <h2>Model server</h2>
 
       {loading && <p className="muted">Contacting server…</p>}

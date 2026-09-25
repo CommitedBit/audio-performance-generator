@@ -159,9 +159,13 @@ The API ships **unauthenticated and bound to loopback**. Both matter:
 
 - Compose publishes on `127.0.0.1` by default. Docker's published ports
   **bypass ufw**, so `0.0.0.0` would expose the GPU to your whole LAN.
-- Set `API_KEY` before exposing it anywhere. nginx injects the header server
-  side, so the key never enters the browser bundle. `/health` stays open so
-  container probes keep working.
+- Set `API_KEY` before exposing it anywhere, then enter the same value in the
+  UI on the **Server** page. The browser stores it and sends it with every
+  request, and the gateway enforces it; `/health` stays open so container
+  probes keep working.
+- nginx deliberately does **not** attach the key for you. A proxy that
+  injects the key authenticates every anonymous caller along with you, so
+  `API_KEY` would protect nothing on an exposed port.
 
 To reach it from another machine, prefer Tailscale or an SSH tunnel over
 publishing a port:

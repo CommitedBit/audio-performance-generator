@@ -39,8 +39,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # ffmpeg: torchaudio and several providers shell out to it for decoding.
 # libsndfile1: the soundfile backend.
+# git: uv shells out to it for the git+https model specs in MODELS. Without it
+# the install fails with "Git executable not found".
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg libsndfile1 curl ca-certificates \
+        ffmpeg libsndfile1 curl ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

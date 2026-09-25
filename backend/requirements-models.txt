@@ -48,6 +48,10 @@ librosa
 conformer
 resemble-perth
 s3tokenizer
+# s3tokenizer needs onnx, unpinned. 1.16.0 is the first release with a CPython
+# 3.12 wheel; the floor keeps the resolver from ever again settling on a
+# source-only onnx that this image cannot build.
+onnx>=1.16.0
 
 # ---- stable-audio-3 runtime --------------------------------------------------
 # flash-attn is NOT listed on purpose. stable_audio_3/models/transformer.py
@@ -57,8 +61,12 @@ s3tokenizer
 # correctness requirement, and on sm_120 it would pin the whole image to one
 # prebuilt wheel.
 pytorch-lightning>=2.5
-alias-free-torch
-descript-audio-codec
+# descript-audio-codec and alias-free-torch were listed here and are NOT
+# imported by any of the three packages at their pinned refs (checked against
+# the source of all three). They were also fatal: descript-audio-codec pulls
+# descript-audiotools, which caps protobuf <3.20, which forces onnx <=1.12.0 --
+# and onnx 1.12.0 ships no CPython 3.12 wheel, so the build fell back to
+# compiling it from source and failed without cmake.
 
 # ---- ace-step runtime --------------------------------------------------------
 # nano-vllm is NOT listed: it is the reason ACE-Step pins torch at all, and it

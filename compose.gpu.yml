@@ -139,9 +139,6 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE: /api
-    environment:
-      # Forwarded to the gateway by nginx; never enters the browser bundle.
-      API_KEY: ${API_KEY:-}
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
     depends_on: [gateway]

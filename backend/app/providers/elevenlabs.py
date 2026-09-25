@@ -8,6 +8,8 @@ appears in /v1/models.
 from __future__ import annotations
 
 import logging
+import threading
+import time
 
 from ..config import get_settings
 from .base import AudioResult, Capability, GenerateRequest, ParamSpec, Provider, VoiceInfo
@@ -17,6 +19,21 @@ log = logging.getLogger(__name__)
 API_ROOT = "https://api.elevenlabs.io/v1"
 TIMEOUT = 120.0
 
+# /v1/models must never wait on the network. The gateway re-runs discovery on
+# every generate request and abandons an upstream after DISCOVERY_TIMEOUT
+# (10 s); fetching voices inline with a 15 s timeout meant a slow or
+# unreachable ElevenLabs marked the whole models service down, and local
+# Chatterbox / ACE-Step / Stable Audio generation then returned 503. Discovery
+# now serves a cached list that a background thread refreshes.
+VOICES_TTL = 600.0            # refresh a good list every 10 minutes
+VOICES_RETRY = 60.0           # back off this long after a failed fetch
+VOICES_FETCH_TIMEOUT = 10.0
+# Served until the first fetch lands. It is the voice generate() defaults to,
+# so it is always valid and the picker is never empty.
+FALLBACK_VOICES = (
+    VoiceInfo(id="21m00Tcm4TlvDq8ikWAM", name="Rachel (default)", description="premade"),
+)
+
 
 class ElevenLabsVoice(Provider):
     id = "elevenlabs-voice"
@@ -25,6 +42,13 @@ class ElevenLabsVoice(Provider):
     license = "commercial SaaS -- your ElevenLabs plan terms apply"
     requires_gpu = False
     description = "Cloud TTS. Sends text to ElevenLabs; requires an API key and network egress."
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._voice_lock = threading.Lock()
+        self._voice_cache: list[VoiceInfo] = []
+        self._voices_due = 0.0            # monotonic time of the next refresh
+        self._voices_refreshing = False
 
     def available(self) -> bool:
         return bool(get_settings().elevenlabs_api_key)
@@ -36,25 +60,42 @@ class ElevenLabsVoice(Provider):
         return object()
 
     def voices(self) -> list[VoiceInfo]:
+        """Return the cached voice list immediately; refresh it in the background."""
         if not self.available():
             return []
+        with self._voice_lock:
+            cached = list(self._voice_cache)
+            if time.monotonic() >= self._voices_due and not self._voices_refreshing:
+                # At most one fetch in flight, however often discovery runs.
+                self._voices_refreshing = True
+                threading.Thread(target=self._refresh_voices, name="elevenlabs-voices", daemon=True).start()
+        return cached or list(FALLBACK_VOICES)
+
+    def _refresh_voices(self) -> None:
+        next_due = time.monotonic() + VOICES_RETRY
         try:
             import httpx
 
             r = httpx.get(
                 f"{API_ROOT}/voices",
                 headers={"xi-api-key": get_settings().elevenlabs_api_key or ""},
-                timeout=15.0,
+                timeout=VOICES_FETCH_TIMEOUT,
             )
             r.raise_for_status()
-            return [
+            fetched = [
                 VoiceInfo(id=v["voice_id"], name=v.get("name", v["voice_id"]), description=v.get("category", ""))
                 for v in r.json().get("voices", [])
             ]
+            with self._voice_lock:
+                self._voice_cache = fetched
+            next_due = time.monotonic() + VOICES_TTL
         except Exception as exc:                       # noqa: BLE001
-            # Never let a cloud outage break /v1/models for the local providers.
+            # Keep serving the last good list (or the fallback) and retry later.
             log.warning("could not list ElevenLabs voices: %s", exc)
-            return []
+        finally:
+            with self._voice_lock:
+                self._voices_due = next_due
+                self._voices_refreshing = False
 
     def params(self) -> list[ParamSpec]:
         return [

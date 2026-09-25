@@ -83,16 +83,68 @@ export class ApiError extends Error {
   }
 }
 
+// -- access key ---------------------------------------------------------------
+//
+// When the server sets API_KEY, every request must carry it. The user enters
+// it once on the Server page and it is kept in this browser.
+//
+// It is deliberately NOT injected by nginx. A proxy that attaches the key to
+// every request authenticates anonymous callers along with everyone else, so
+// setting API_KEY would protect nothing on an exposed port.
+
+const KEY_STORAGE = 'apg.apiKey';
+// Fallback when storage is unavailable (some private modes throw on access):
+// the key then lasts for this page load instead of being silently dropped.
+let memoryKey = '';
+
+export function getApiKey(): string {
+  try {
+    return localStorage.getItem(KEY_STORAGE) ?? memoryKey;
+  } catch {
+    return memoryKey;
+  }
+}
+
+export function setApiKey(key: string): void {
+  memoryKey = key.trim();
+  try {
+    if (memoryKey) localStorage.setItem(KEY_STORAGE, memoryKey);
+    else localStorage.removeItem(KEY_STORAGE);
+  } catch {
+    /* storage unavailable; memoryKey still applies for this page */
+  }
+}
+
+function withAuth(init?: RequestInit): RequestInit {
+  const key = getApiKey();
+  if (!key) return init ?? {};
+  // Headers() accepts every HeadersInit shape and leaves FormData uploads
+  // alone, so multipart boundaries are still set by the browser.
+  const headers = new Headers(init?.headers);
+  headers.set('X-API-Key', key);
+  return { ...init, headers };
+}
+
+function authError(): ApiError {
+  return new ApiError(
+    401,
+    getApiKey()
+      ? 'the server rejected the API key - check it on the Server page'
+      : 'this server requires an API key - enter it on the Server page'
+  );
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, init);
+    res = await fetch(`${API_BASE}${path}`, withAuth(init));
   } catch {
     // A dead backend is the most likely failure in local dev, so name it
     // rather than surfacing a bare "Failed to fetch".
     throw new ApiError(0, `cannot reach the model server at ${API_BASE} - is it running?`);
   }
 
+  if (res.status === 401) throw authError();
   if (!res.ok) {
     // FastAPI puts the useful text in `detail`; keep the status either way.
     let detail = res.statusText;
@@ -208,7 +260,8 @@ export async function waitForJob(
 /** Fetch the finished audio so it can be cached locally and decoded. */
 export async function fetchAudio(job: JobInfo): Promise<Blob> {
   if (!job.audio_url) throw new ApiError(500, 'job finished without producing audio');
-  const res = await fetch(`${API_BASE}${job.audio_url}`);
+  const res = await fetch(`${API_BASE}${job.audio_url}`, withAuth());
+  if (res.status === 401) throw authError();
   if (!res.ok) throw new ApiError(res.status, `could not fetch audio: ${res.statusText}`);
   return await res.blob();
 }
