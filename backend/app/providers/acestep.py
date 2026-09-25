@@ -39,8 +39,12 @@ class AceStepProvider(Provider):
 
     def __init__(self, model_id: str | None = None) -> None:
         super().__init__()
-        self.model_id = model_id or os.getenv("ACESTEP_MODEL", "ACE-Step/acestep-v15-base")
-        self.backend = os.getenv("ACESTEP_BACKEND", "pt")
+        # `or`, not a getenv default: compose passes ${ACESTEP_MODEL:-}, which
+        # sets the variable to "" when .env leaves it blank (as .env.example
+        # does). A getenv default only applies when the variable is UNSET, so
+        # it would have produced an empty model id for every default deploy.
+        self.model_id = model_id or os.getenv("ACESTEP_MODEL") or "ACE-Step/acestep-v15-base"
+        self.backend = os.getenv("ACESTEP_BACKEND") or "pt"
 
     def available(self) -> bool:
         return importlib.util.find_spec("acestep") is not None

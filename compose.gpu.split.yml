@@ -22,7 +22,10 @@ services:
           chatterbox-tts==0.1.7
           git+https://github.com/Stability-AI/stable-audio-3@779434a90819
     environment:
-      PROVIDERS: chatterbox,stable-audio-3-sfx,stable-audio-3-music
+      # The registry drops every provider not named here, so the ElevenLabs
+      # fallback must be listed explicitly; without ELEVENLABS_API_KEY it is
+      # still simply reported unavailable.
+      PROVIDERS: chatterbox,stable-audio-3-sfx,stable-audio-3-music,elevenlabs-voice,elevenlabs-sfx
 
   music:
     build:
@@ -46,6 +49,7 @@ services:
       PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
       TORCH_CUDA_ARCH_LIST: "12.0"
       ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
+      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
     volumes:
       - models:/models
       - ${DATA_PATH:-/srv/story/data}:/data

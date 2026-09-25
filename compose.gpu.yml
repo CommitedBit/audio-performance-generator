@@ -117,6 +117,8 @@ services:
       # 'pt' avoids nano-vllm, which is why ACE-Step pins torch at all and is
       # reported broken on sm_120.
       ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
+      # Blank means the provider's default checkpoint.
+      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
       SA3_MODEL: ${SA3_MODEL:-}
     volumes:
       # Named volume for the HF cache: daemon-side, and symlink-capable for
