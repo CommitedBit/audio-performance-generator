@@ -37,6 +37,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+import threading
 
 from ..config import get_settings
 from .base import AudioResult, Capability, GenerateRequest, ParamSpec, Provider, pcm_to_wav
@@ -45,6 +46,25 @@ log = logging.getLogger(__name__)
 
 # Peak VRAM at max length, from Stability's published benchmark table.
 PEAK_VRAM_GB = {"medium": 6.52, "small": 2.40}
+
+# One pipeline per (model id, device, dtype), shared by every provider instance
+# that asks for it. With SA3_MODEL pinned to the medium checkpoint, the sfx and
+# music providers point at the SAME weights; without sharing, using both would
+# leave two copies resident and the second load could run the card out of
+# VRAM -- the opposite of the one-model configuration SA3_MODEL exists for.
+#
+# Reference-counted by holder, because each provider unloads on its own idle
+# timer: sfx going idle must not free a pipeline music is still using. The
+# pipeline is dropped only when its last holder releases it. The small
+# checkpoints have distinct ids per capability, so they never share.
+#
+# Sharing is safe because generation is serialised (MAX_CONCURRENT_JOBS=1): a
+# diffusers pipeline holds scheduler state and must not run two calls at once.
+# Raising that limit with a shared medium checkpoint would need a per-pipeline
+# lock.
+_SHARED: dict[tuple[str, str, str], object] = {}
+_HOLDERS: dict[tuple[str, str, str], set[str]] = {}
+_SHARED_LOCK = threading.Lock()
 
 
 class StableAudio3Provider(Provider):
@@ -67,6 +87,8 @@ class StableAudio3Provider(Provider):
             default = f"stabilityai/stable-audio-3-small-{capability.value}"
             self.model_id = shared or default
 
+        # Key of the shared pipeline this instance holds while loaded.
+        self._pipeline_key: tuple[str, str, str] | None = None
         self.tier = "medium" if "medium" in self.model_id else "small"
         self.name = f"Stable Audio 3 {self.tier} ({capability.value})"
         self.max_seconds = 380.0 if self.tier == "medium" else 120.0
@@ -97,6 +119,23 @@ class StableAudio3Provider(Provider):
 
         device = get_settings().device
         dtype = torch.float16 if device == "cuda" else torch.float32
+        key = (self.model_id, device, str(dtype))
+
+        # Held for the whole build so two providers asking for the same weights
+        # at once cannot both construct a copy.
+        with _SHARED_LOCK:
+            pipe = _SHARED.get(key)
+            if pipe is not None:
+                log.info("%s reusing the already-loaded %s pipeline", self.id, self.model_id)
+            else:
+                pipe = self._build_pipeline(device, dtype)
+                _SHARED[key] = pipe
+            _HOLDERS.setdefault(key, set()).add(self.id)
+
+        self._pipeline_key = key
+        return pipe
+
+    def _build_pipeline(self, device: str, dtype):
         token = os.getenv("HF_TOKEN") or None
 
         if not _flash_attn_present():
@@ -115,6 +154,26 @@ class StableAudio3Provider(Provider):
 
         pipe = StableAudio3Pipeline.from_pretrained(self.model_id, torch_dtype=dtype, token=token)
         return pipe.to(device)
+
+    def unload(self) -> None:
+        if self._model is None:
+            return
+        key = getattr(self, "_pipeline_key", None)
+        with _SHARED_LOCK:
+            holders = _HOLDERS.get(key)
+            if holders is not None:
+                holders.discard(self.id)
+                if not holders:
+                    # Last holder out: drop the shared reference so it can be freed.
+                    _HOLDERS.pop(key, None)
+                    _SHARED.pop(key, None)
+                else:
+                    log.info("%s released %s; still held by %s", self.id, self.model_id, sorted(holders))
+        self._pipeline_key = None
+        # Drops this provider's reference and empties the CUDA cache. Harmless
+        # while another holder keeps the pipeline alive: empty_cache only
+        # returns blocks nothing is using.
+        super().unload()
 
     def params(self) -> list[ParamSpec]:
         default_len = 6.0 if self.capability is Capability.SFX else 30.0

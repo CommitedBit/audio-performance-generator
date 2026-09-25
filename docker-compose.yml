@@ -23,10 +23,16 @@ services:
       UPSTREAMS: stub=http://stub:8000
       DATA_DIR: /data
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      # Must be set HERE, not only on nginx: the gateway enforces the key, and
+      # this port is published directly, so without it anyone could bypass
+      # nginx and call the API unauthenticated.
+      API_KEY: ${API_KEY:-}
     volumes:
       - data:/data
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      # Loopback by default, matching compose.gpu.yml: Docker's published ports
+      # bypass ufw.
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
     depends_on: [stub]
     restart: unless-stopped
 
@@ -53,7 +59,7 @@ services:
       # Forwarded to the gateway by nginx; never enters the browser bundle.
       API_KEY: ${API_KEY:-}
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${BIND_ADDR:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
     depends_on: [gateway]
     restart: unless-stopped
 

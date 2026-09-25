@@ -50,7 +50,9 @@ virtiofs.
 Weights live in the `models` **named volume** — daemon-side, and symlink-capable
 for HuggingFace's blobs/snapshots layout. Generated audio and voice references
 bind-mount to `DATA_PATH` (default `/srv/story/data`) so you can find them
-outside Docker.
+outside Docker. You don't need to create or `chown` it: a one-shot `data-init`
+container gives it to the app's uid (10001) before anything else starts, and
+the app containers themselves never run as root.
 
 ### Proxmox: use a VM, not an LXC container
 
