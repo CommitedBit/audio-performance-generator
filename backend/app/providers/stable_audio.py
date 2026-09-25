@@ -71,7 +71,7 @@ class StableAudio3Provider(Provider):
         self.name = f"Stable Audio 3 {self.tier} ({capability.value})"
         self.max_seconds = 380.0 if self.tier == "medium" else 120.0
 
-    def available(self) -> bool:
+    def _deps_present(self) -> bool:
         # The official `stable_audio_3` package is preferred; diffusers documents
         # the medium checkpoints and works as a fallback.
         return (
@@ -79,8 +79,14 @@ class StableAudio3Provider(Provider):
             or importlib.util.find_spec("diffusers") is not None
         )
 
+    def available(self) -> bool:
+        # The checkpoints are gated, so without a token every load fails on the
+        # download. Reporting available anyway made this the sfx default and
+        # broke every sfx request; the token is part of "can this run".
+        return self._deps_present() and bool(os.getenv("HF_TOKEN"))
+
     def unavailable_reason(self) -> str:
-        if not self.available():
+        if not self._deps_present():
             return "neither stable-audio-3 nor diffusers is installed in this image"
         if not os.getenv("HF_TOKEN"):
             return "HF_TOKEN is not set (stable-audio-3 weights are gated)"

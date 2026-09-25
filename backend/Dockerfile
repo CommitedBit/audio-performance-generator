@@ -67,6 +67,12 @@ ARG EXTRAS=""
 # Git refs are pinned to commits rather than main so a rebuild is reproducible.
 ARG MODELS=""
 
+# Every install step is chained with && so any failure fails the build. The
+# trailing torch probe is informational and is the ONLY step allowed to fail --
+# its `|| true` is grouped in braces so it cannot swallow an install error. An
+# ungrouped `|| true` here applies to the whole chain and silently ships an
+# image with no model packages.
+#
 # TORCH_PIN is applied as a dependency OVERRIDE, not merely installed first.
 # Installing first is not enough: the model packages declare exact torch pins
 # and the resolver will downgrade straight back to satisfy them -- including to
@@ -94,7 +100,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
             -r requirements-models.txt \
         && uv pip install --no-deps ${MODELS} ; \
     fi \
-    && python -c "import torch; print('torch', torch.__version__)" 2>/dev/null || true
+    && { python -c "import torch; print('torch', torch.__version__)" 2>/dev/null || true; }
 
 COPY app ./app
 

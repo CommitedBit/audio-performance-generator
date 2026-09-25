@@ -227,32 +227,52 @@ async def sfx(body: GenerateBody):
     return await _generate("sfx", body)
 
 
-@app.get("/v1/jobs/{job_id}")
-async def get_job(job_id: str):
+def _split_job_id(job_id: str) -> tuple[str, str]:
     if ":" not in job_id:
         raise HTTPException(400, "job id must be prefixed with its service")
     service, real_id = job_id.split(":", 1)
     if service not in UPSTREAMS:
         raise HTTPException(404, f"unknown service: {service}")
-    async with httpx.AsyncClient() as client:
-        data = await _get_json(client, service, f"/v1/jobs/{real_id}")
-    if data is None:
-        raise HTTPException(502, f"cannot reach {service}")
-    return _tag_job(service, data)
+    return service, real_id
+
+
+async def _proxy_job(method: str, job_id: str):
+    """Relay a job request, preserving the upstream's own status and detail.
+
+    Unlike discovery, which deliberately collapses failures so one dead backend
+    cannot break /v1/models, a job request has exactly one upstream and its
+    answer is meaningful: a 404 after that service restarted means "this job
+    is gone", not "cannot reach". Only transport failures become 502/504.
+    """
+    service, real_id = _split_job_id(job_id)
+    url = f"{UPSTREAMS[service]}/v1/jobs/{real_id}"
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.request(method, url, timeout=DISCOVERY_TIMEOUT)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(504, f"{service} timed out after {DISCOVERY_TIMEOUT}s") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"cannot reach {service}: {exc}") from exc
+
+    try:
+        payload = r.json()
+    except ValueError:
+        raise HTTPException(502, f"{service} returned a non-JSON response ({r.status_code})") from None
+
+    if r.status_code >= 400:
+        detail = payload.get("detail", payload) if isinstance(payload, dict) else payload
+        raise HTTPException(r.status_code, detail)
+    return _tag_job(service, payload)
+
+
+@app.get("/v1/jobs/{job_id}")
+async def get_job(job_id: str):
+    return await _proxy_job("GET", job_id)
 
 
 @app.delete("/v1/jobs/{job_id}")
 async def cancel_job(job_id: str):
-    if ":" not in job_id:
-        raise HTTPException(400, "job id must be prefixed with its service")
-    service, real_id = job_id.split(":", 1)
-    if service not in UPSTREAMS:
-        raise HTTPException(404, f"unknown service: {service}")
-    async with httpx.AsyncClient() as client:
-        r = await client.delete(f"{UPSTREAMS[service]}/v1/jobs/{real_id}", timeout=DISCOVERY_TIMEOUT)
-    if r.status_code >= 400:
-        raise HTTPException(r.status_code, r.text[:300])
-    return _tag_job(service, r.json())
+    return await _proxy_job("DELETE", job_id)
 
 
 # -- served straight off the shared data volume; no routing needed -------------

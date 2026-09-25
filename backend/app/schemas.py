@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class GenerateBody(BaseModel):
@@ -16,12 +16,26 @@ class GenerateBody(BaseModel):
 
 
 class SpeechBody(GenerateBody):
-    """OpenAI-ish shape so existing TTS clients mostly work unchanged."""
+    """OpenAI-ish shape so existing TTS clients mostly work unchanged.
+
+    Either `prompt` or its OpenAI alias `input` must carry the text, so `prompt`
+    is overridden as optional here -- inheriting it as required meant a plain
+    {"input": ..., "voice": ...} request failed validation before the alias was
+    ever consulted.
+    """
+    prompt: str | None = Field(None, max_length=5000, description="Text to speak")
     voice: str | None = Field(None, description="Alias for voice_id, for OpenAI compatibility")
-    input: str | None = Field(None, description="Alias for prompt, for OpenAI compatibility")
+    input: str | None = Field(None, max_length=5000, description="Alias for prompt, for OpenAI compatibility")
+
+    @model_validator(mode="after")
+    def _require_text(self) -> SpeechBody:
+        if not (self.input or self.prompt or "").strip():
+            raise ValueError("either prompt or input must contain text")
+        return self
 
     def resolved_prompt(self) -> str:
-        return self.input or self.prompt
+        # The validator guarantees one of the two is non-empty.
+        return self.input or self.prompt or ""
 
     def resolved_voice(self) -> str | None:
         return self.voice or self.voice_id
