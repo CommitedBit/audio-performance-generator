@@ -69,6 +69,12 @@ ARG EXTRAS=""
 # Git refs are pinned to commits rather than main so a rebuild is reproducible.
 ARG MODELS=""
 
+# The dependency set MODELS installs against. The unified image uses the shared
+# compromise in requirements-models.txt; the split topology gives each image its
+# own set (requirements-models-acestep.txt / -voice-sfx.txt), so switching
+# topology actually changes the environment -- the reason the split exists.
+ARG MODEL_REQUIREMENTS=requirements-models.txt
+
 # Every install step is chained with && so any failure fails the build. The
 # trailing torch probe is informational and is the ONLY step allowed to fail --
 # its `|| true` is grouped in braces so it cannot swallow an install error. An
@@ -82,7 +88,7 @@ ARG MODELS=""
 # stick. Space-separate multiple specs.
 ARG TORCH_PIN=""
 
-COPY pyproject.toml requirements-models.txt ./
+COPY pyproject.toml requirements-models*.txt ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -n "${TORCH_PIN}" ]; then \
         printf '%s\n' ${TORCH_PIN} > /tmp/overrides.txt ; \
@@ -99,7 +105,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         uv pip install --index-strategy unsafe-best-match \
             --extra-index-url "${TORCH_INDEX_URL}" \
             --overrides /tmp/overrides.txt \
-            -r requirements-models.txt \
+            -r "${MODEL_REQUIREMENTS}" \
         && uv pip install --no-deps ${MODELS} ; \
     fi \
     && { python -c "import torch; print('torch', torch.__version__)" 2>/dev/null || true; }

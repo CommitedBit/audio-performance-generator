@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import enum
+import functools
 import io
 import threading
 import time
@@ -155,15 +156,65 @@ class Provider(abc.ABC):
         self._load_lock = threading.Lock()
         # Generations currently running on this provider's model.
         self._active = 0
+        # Last load failure. Import checks cannot see a bad checkpoint, a
+        # rejected credential or incompatible pins -- only a load attempt can --
+        # so a failed load is recorded and reported until a retry succeeds.
+        self._load_error: str | None = None
+        self._load_failed_at = 0.0
 
     # -- capability reporting -------------------------------------------------
+    #
+    # A recorded load failure takes precedence over a provider's own checks, in
+    # BOTH methods. Without it, a provider whose imports resolved but whose load
+    # failed kept reporting available: discovery advertised it, default routing
+    # kept choosing it, and every request re-ran the same doomed multi-GB load.
+    # __init_subclass__ applies this to every override, so no provider -- present
+    # or future -- has to remember to.
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if "available" in cls.__dict__:
+            inner_available = cls.__dict__["available"]
+
+            @functools.wraps(inner_available)
+            def available(self, _inner=inner_available) -> bool:
+                return self.load_failure() is None and _inner(self)
+
+            cls.available = available
+        if "unavailable_reason" in cls.__dict__:
+            inner_reason = cls.__dict__["unavailable_reason"]
+
+            @functools.wraps(inner_reason)
+            def unavailable_reason(self, _inner=inner_reason) -> str:
+                # Checked first: several providers derive their reason text from
+                # available(), and would otherwise blame a missing dependency.
+                return self.load_failure() or _inner(self)
+
+            cls.unavailable_reason = unavailable_reason
+
+    def load_failure(self) -> str | None:
+        """The recorded load failure while its cooldown runs, else None.
+
+        Once the cooldown (PROVIDER_RETRY_SECONDS) elapses the provider reports
+        available again, so the next request retries the load: one expensive
+        attempt per window rather than one per request. A successful load
+        clears the record.
+        """
+        if self._load_error is None:
+            return None
+        from ..config import get_settings
+
+        remaining = get_settings().provider_retry_seconds - (time.monotonic() - self._load_failed_at)
+        if remaining <= 0:
+            return None
+        return f"failed to load: {self._load_error} (retrying in {remaining:.0f}s)"
 
     def available(self) -> bool:
         """True if this provider's dependencies and weights are usable."""
-        return True
+        return self.load_failure() is None
 
     def unavailable_reason(self) -> str:
-        return ""
+        return self.load_failure() or ""
 
     def voices(self) -> list[VoiceInfo]:
         return []
@@ -187,7 +238,13 @@ class Provider(abc.ABC):
         if model is None:
             with self._load_lock:
                 if self._model is None:
-                    self._model = self._load()
+                    try:
+                        self._model = self._load()
+                    except Exception as exc:
+                        self._load_error = f"{type(exc).__name__}: {exc}"[:400]
+                        self._load_failed_at = time.monotonic()
+                        raise
+                    self._load_error = None
                 model = self._model
         self._last_used = time.monotonic()
         return model

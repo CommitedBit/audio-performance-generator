@@ -47,6 +47,11 @@ librosa
 # ---- chatterbox runtime ------------------------------------------------------
 conformer
 resemble-perth
+# resemble-perth does `from pkg_resources import resource_filename`; setuptools
+# removed pkg_resources in 82.0.0. <72 is ACE-Step's own declared bound, which
+# satisfies both. Without this the unified image resolved setuptools 84 and
+# Chatterbox failed at load.
+setuptools<72
 s3tokenizer
 # s3tokenizer needs onnx, unpinned. 1.16.0 is the first release with a CPython
 # 3.12 wheel; the floor keeps the resolver from ever again settling on a

@@ -58,6 +58,10 @@ class Settings:
         # Unload a model after this many seconds idle to free VRAM. 0 disables.
         self.model_idle_timeout: int = int(os.getenv("MODEL_IDLE_TIMEOUT", "600"))
 
+        # After a provider fails to load, report it unavailable for this long
+        # before the next request is allowed to retry the load.
+        self.provider_retry_seconds: int = int(os.getenv("PROVIDER_RETRY_SECONDS", "300"))
+
         self.cors_origins: list[str] = [
             o.strip()
             for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",")

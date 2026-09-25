@@ -17,7 +17,10 @@ services:
   models:
     build:
       args:
-        # Chatterbox + Stable Audio 3 only.
+        # Chatterbox + Stable Audio 3 only, against their own dependency set --
+        # without ACE-Step's transformers <4.58 ceiling, which is what lets
+        # Stable Audio 3 get the diffusers 0.40 / huggingface-hub 1.x it needs.
+        MODEL_REQUIREMENTS: requirements-models-voice-sfx.txt
         MODELS: >-
           chatterbox-tts==0.1.7
           git+https://github.com/Stability-AI/stable-audio-3@779434a90819
@@ -40,7 +43,10 @@ services:
         CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
         TORCH_INDEX: ${TORCH_INDEX:-cu128}
         PYTHON_VERSION: "3.12"
-        TORCH_PIN: torch==2.7.1+cu128 torchaudio==2.7.1+cu128
+        # ACE-Step alone, on its own declared dependencies and its own declared
+        # torch (2.10.0+cu128 -- cu128 carries sm_120).
+        TORCH_PIN: torch==2.10.0+cu128 torchaudio==2.10.0+cu128 torchvision==0.25.0+cu128
+        MODEL_REQUIREMENTS: requirements-models-acestep.txt
         MODELS: git+https://github.com/ace-step/ACE-Step-1.5@ca1e85fe9430
     environment:
       DEVICE: cuda
@@ -52,6 +58,7 @@ services:
       GPU_LOCK_FILE: /models/.gpu-slot
       MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
       MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
+      PROVIDER_RETRY_SECONDS: ${PROVIDER_RETRY_SECONDS:-300}
       PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
       TORCH_CUDA_ARCH_LIST: "12.0"
       ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}

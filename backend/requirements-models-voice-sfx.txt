@@ -1,0 +1,52 @@
+# Split topology, `models` image: Chatterbox + Stable Audio 3, WITHOUT ACE-Step.
+#
+# Without ACE-Step in the image, its transformers <4.58 ceiling -- which also
+# forces huggingface-hub <1.0 -- no longer applies. That matters: the only
+# Stable Audio 3 loader here is diffusers' StableAudio3Pipeline, which first
+# ships in diffusers 0.40.0, and diffusers 0.40.0 requires huggingface-hub
+# >=1.23.0. So Stable Audio 3 can load in THIS image and cannot in the unified
+# one.
+#
+# Chatterbox 0.1.7 and stable-audio-3 still conflict on several exact pins, so
+# they install --no-deps against this list. Every conflict is resolved
+# explicitly below, in favour of stable-audio-3's declaration (the newer stack)
+# or of what sm_120 requires. torch / torchaudio come from TORCH_PIN at
+# stable-audio-3's own 2.7.1, cu128 build.
+
+# ---- stable-audio-3 @ 779434a90819, as declared --------------------------------
+einops>=0.8.2
+einops-exts>=0.0.4
+# overrides Chatterbox's numpy<2.0 (the unified image already runs it on 2.x)
+numpy>=2.2.6
+packaging>=26.0
+# overrides Chatterbox's safetensors==0.5.3
+safetensors>=0.7.0
+tqdm>=4.67.3
+# stable-audio-3 declares >=1.7.1; diffusers 0.40.0 needs >=1.23.0
+huggingface-hub>=1.23.0
+# overrides Chatterbox's transformers==5.2.0
+transformers>=5.8.0
+soundfile>=0.13.1
+
+# ---- the Stable Audio 3 provider's loader ----------------------------------------
+# First release with StableAudio3Pipeline. Overrides Chatterbox's diffusers==0.29.0.
+diffusers>=0.40.0
+accelerate>=0.31.0
+
+# ---- chatterbox-tts 0.1.7, as declared -------------------------------------------
+librosa==0.11.0
+s3tokenizer
+# s3tokenizer's onnx is unpinned; 1.16.0 is the first release with a cp312 wheel
+onnx>=1.16.0
+resemble-perth>=1.0.0
+# resemble-perth does `from pkg_resources import resource_filename`, and
+# setuptools removed pkg_resources in 82.0.0
+setuptools<82
+conformer==0.3.2
+omegaconf
+# multilingual tokenizers (imported inside try/except) and the turbo model
+spacy-pkuseg
+pykakasi==2.3.0
+pyloudnorm
+# gradio==6.8.0 is declared too, but only Chatterbox's demo apps import it; it
+# would bring its own fastapi/pydantic pins into the API server's environment.

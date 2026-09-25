@@ -1,0 +1,46 @@
+# Split topology, `music` image: ACE-Step-1.5 ALONE.
+#
+# This is ACE-Step's own declared dependency list, copied from its pyproject.toml
+# at the pinned commit (ca1e85fe9430), so this image honours ACE-Step's
+# constraints instead of the unified compromise -- which is the reason the split
+# topology exists. Regenerate it if the ACE-Step pin changes.
+#
+# Removed from the declaration, each verified rather than assumed:
+#   torch / torchaudio / torchvision  supplied by TORCH_PIN, at ACE-Step's own
+#                                     declared 2.10.0+cu128 / 0.25.0+cu128
+#   nano-vllm                         the vLLM LM backend; this deployment runs
+#                                     ACESTEP_BACKEND=pt, and nano-vllm is
+#                                     reported broken on sm_120
+#   gradio                            ACE-Step's web UI; nothing on the inference
+#                                     path imports it
+# The duplicate tensorboard entry is collapsed to the tighter bound.
+
+transformers>=4.51.0,<4.58.0
+diffusers>=0.37.0
+matplotlib>=3.7.5
+scipy>=1.10.1
+soundfile>=0.13.1
+loguru>=0.7.3
+einops>=0.8.1
+accelerate>=1.12.0
+fastapi>=0.110.0
+diskcache
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.18
+numba>=0.63.1
+vector-quantize-pytorch>=1.27.15
+torchcodec>=0.9.1; platform_machine != 'aarch64'
+torchao>=0.16.0,<0.17.0; platform_machine != 'aarch64'
+torchao; platform_machine == 'aarch64'
+toml
+mlx>=0.25.2; sys_platform == 'darwin' and platform_machine == 'arm64'
+mlx-lm>=0.20.0; sys_platform == 'darwin' and platform_machine == 'arm64'
+peft>=0.18.0
+lycoris-lora
+lightning>=2.0.0
+tensorboard>=2.20.0
+modelscope
+typer-slim>=0.21.1
+pytorch-wavelets>=1.3.0
+pywavelets>=1.9.0
+setuptools<72

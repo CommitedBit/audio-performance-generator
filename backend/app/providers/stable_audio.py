@@ -34,9 +34,11 @@ supply HF_TOKEN at RUNTIME. Never bake a token into the image.
 """
 from __future__ import annotations
 
+import importlib.metadata
 import importlib.util
 import logging
 import os
+import re
 import threading
 
 from ..config import get_settings
@@ -46,6 +48,36 @@ log = logging.getLogger(__name__)
 
 # Peak VRAM at max length, from Stability's published benchmark table.
 PEAK_VRAM_GB = {"medium": 6.52, "small": 2.40}
+
+# The loader below uses diffusers' StableAudio3Pipeline, which first ships in
+# diffusers 0.40.0. That release requires huggingface-hub >=1.23, while
+# ACE-Step's transformers <4.58 requires huggingface-hub <1.0 -- so this cannot
+# be satisfied in an image that also holds ACE-Step. The split topology's
+# voice/sfx image is where it can.
+SA3_DIFFUSERS_MIN = (0, 40, 0)
+
+
+def _loader_problem() -> str:
+    """Why the implemented loader cannot run here, or "" if it can.
+
+    Checked from package metadata rather than by importing diffusers, which
+    pulls in torch and is too slow for a discovery path called per request.
+    """
+    if importlib.util.find_spec("diffusers") is None:
+        return "diffusers is not installed; the Stable Audio 3 loader uses its StableAudio3Pipeline"
+    try:
+        version = importlib.metadata.version("diffusers")
+    except importlib.metadata.PackageNotFoundError:
+        return "diffusers is importable but has no package metadata"
+    m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", version)
+    have = tuple(int(x or 0) for x in m.groups()) if m else (0, 0, 0)
+    if have < SA3_DIFFUSERS_MIN:
+        return (
+            f"diffusers {version} has no StableAudio3Pipeline (first in 0.40.0, which needs "
+            "huggingface-hub >=1.23 and so cannot share an image with ACE-Step); "
+            "run Stable Audio 3 in the split topology (compose.gpu.split.yml)"
+        )
+    return ""
 
 # One pipeline per (model id, device, dtype), shared by every provider instance
 # that asks for it. With SA3_MODEL pinned to the medium checkpoint, the sfx and
@@ -99,12 +131,11 @@ class StableAudio3Provider(Provider):
         self.max_seconds = 380.0 if self.tier == "medium" else 120.0
 
     def _deps_present(self) -> bool:
-        # The official `stable_audio_3` package is preferred; diffusers documents
-        # the medium checkpoints and works as a fallback.
-        return (
-            importlib.util.find_spec("stable_audio_3") is not None
-            or importlib.util.find_spec("diffusers") is not None
-        )
+        # Only what the loader actually uses counts. It builds diffusers'
+        # StableAudio3Pipeline and never touches the official stable_audio_3
+        # package, so that package being importable must not report this
+        # provider ready -- it did, and every generation then failed in load.
+        return _loader_problem() == ""
 
     def available(self) -> bool:
         # The checkpoints are gated, so without a token every load fails on the
@@ -113,8 +144,9 @@ class StableAudio3Provider(Provider):
         return self._deps_present() and bool(os.getenv("HF_TOKEN"))
 
     def unavailable_reason(self) -> str:
-        if not self._deps_present():
-            return "neither stable-audio-3 nor diffusers is installed in this image"
+        problem = _loader_problem()
+        if problem:
+            return problem
         if not os.getenv("HF_TOKEN"):
             return "HF_TOKEN is not set (stable-audio-3 weights are gated)"
         return ""
