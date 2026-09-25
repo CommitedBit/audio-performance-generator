@@ -35,15 +35,27 @@ class SpeechBody(GenerateBody):
     voice: str | None = Field(None, description="Alias for voice_id, for OpenAI compatibility")
     input: str | None = Field(None, max_length=5000, description="Alias for prompt, for OpenAI compatibility")
 
+    def _first_text(self) -> str:
+        """The first of `input` / `prompt` with real content.
+
+        Whitespace does not count, so a blank `input` sent alongside a real
+        `prompt` falls through to the prompt instead of shadowing it. The
+        OpenAI alias wins only when both carry text. Validation and resolution
+        both use this, so they cannot disagree.
+        """
+        for value in (self.input, self.prompt):
+            if value and value.strip():
+                return value
+        return ""
+
     @model_validator(mode="after")
     def _require_text(self) -> SpeechBody:
-        if not (self.input or self.prompt or "").strip():
+        if not self._first_text():
             raise ValueError("either prompt or input must contain text")
         return self
 
     def resolved_prompt(self) -> str:
-        # The validator guarantees one of the two is non-empty.
-        return self.input or self.prompt or ""
+        return self._first_text()
 
     def resolved_voice(self) -> str | None:
         return self.voice or self.voice_id

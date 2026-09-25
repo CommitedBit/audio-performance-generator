@@ -269,7 +269,12 @@ async def generate_sfx(body: GenerateBody):
 
 @app.get("/v1/jobs")
 def list_jobs(limit: int = Query(50, ge=1, le=200)):
-    return {"jobs": queue.list(limit)}
+    # Same shape as GET /v1/jobs/{id}, including audio_url, so a listed job
+    # can be recovered without a second request.
+    return {"jobs": [
+        {**j, "audio_url": f"/v1/audio/{j['audio_id']}" if j.get("audio_id") else None}
+        for j in queue.list(limit)
+    ]}
 
 
 @app.get("/v1/jobs/{job_id}")

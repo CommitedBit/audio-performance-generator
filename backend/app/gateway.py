@@ -265,6 +265,30 @@ async def _proxy_job(method: str, job_id: str):
     return _tag_job(service, payload)
 
 
+@app.get("/v1/jobs")
+async def list_jobs(limit: int = Query(50, ge=1, le=200)):
+    """Recent jobs across every upstream, newest first.
+
+    Each id is prefixed with its service, exactly as the single-job routes
+    expect, so an entry from this list can be polled or cancelled directly.
+    Like /v1/models, one unreachable upstream degrades the list instead of
+    failing it, and is named in `upstreams_down`.
+    """
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            *(_get_json(client, k, f"/v1/jobs?limit={limit}") for k in UPSTREAMS)
+        )
+    jobs: list[dict] = []
+    down: list[str] = []
+    for key, data in zip(UPSTREAMS, results, strict=True):
+        if data is None:
+            down.append(key)
+            continue
+        jobs.extend(_tag_job(key, dict(j)) for j in data.get("jobs", []))
+    jobs.sort(key=lambda j: j.get("created_at") or 0, reverse=True)
+    return {"jobs": jobs[:limit], "upstreams_down": down}
+
+
 @app.get("/v1/jobs/{job_id}")
 async def get_job(job_id: str):
     return await _proxy_job("GET", job_id)

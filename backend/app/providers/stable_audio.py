@@ -58,12 +58,13 @@ PEAK_VRAM_GB = {"medium": 6.52, "small": 2.40}
 # pipeline is dropped only when its last holder releases it. The small
 # checkpoints have distinct ids per capability, so they never share.
 #
-# Sharing is safe because generation is serialised (MAX_CONCURRENT_JOBS=1): a
-# diffusers pipeline holds scheduler state and must not run two calls at once.
-# Raising that limit with a shared medium checkpoint would need a per-pipeline
-# lock.
+# A diffusers pipeline holds mutable scheduler state and must not run two calls
+# at once. Each shared pipeline therefore carries its own call lock, so jobs on
+# the SAME weights serialise even with MAX_CONCURRENT_JOBS raised, while jobs on
+# different weights (the two small checkpoints) still run in parallel.
 _SHARED: dict[tuple[str, str, str], object] = {}
 _HOLDERS: dict[tuple[str, str, str], set[str]] = {}
+_CALL_LOCKS: dict[tuple[str, str, str], threading.Lock] = {}
 _SHARED_LOCK = threading.Lock()
 
 
@@ -89,6 +90,10 @@ class StableAudio3Provider(Provider):
 
         # Key of the shared pipeline this instance holds while loaded.
         self._pipeline_key: tuple[str, str, str] | None = None
+        # Replaced on load by the lock of the pipeline this instance holds.
+        # Never cleared on unload, so a generate() racing an idle unload can
+        # never find it missing; the next load always overwrites it first.
+        self._call_lock = threading.Lock()
         self.tier = "medium" if "medium" in self.model_id else "small"
         self.name = f"Stable Audio 3 {self.tier} ({capability.value})"
         self.max_seconds = 380.0 if self.tier == "medium" else 120.0
@@ -130,7 +135,9 @@ class StableAudio3Provider(Provider):
             else:
                 pipe = self._build_pipeline(device, dtype)
                 _SHARED[key] = pipe
+                _CALL_LOCKS[key] = threading.Lock()
             _HOLDERS.setdefault(key, set()).add(self.id)
+            self._call_lock = _CALL_LOCKS[key]
 
         self._pipeline_key = key
         return pipe
@@ -167,6 +174,7 @@ class StableAudio3Provider(Provider):
                     # Last holder out: drop the shared reference so it can be freed.
                     _HOLDERS.pop(key, None)
                     _SHARED.pop(key, None)
+                    _CALL_LOCKS.pop(key, None)
                 else:
                     log.info("%s released %s; still held by %s", self.id, self.model_id, sorted(holders))
         self._pipeline_key = None
@@ -202,14 +210,17 @@ class StableAudio3Provider(Provider):
         if req.seed is not None:
             generator = torch.Generator(device=device).manual_seed(int(req.seed))
 
-        result = pipe(
-            prompt,
-            negative_prompt=req.params.get("negative_prompt") or None,
-            num_inference_steps=int(req.params.get("steps", 8)),
-            guidance_scale=float(req.params.get("guidance_scale", 7.0)),
-            audio_end_in_s=seconds,
-            generator=generator,
-        )
+        # Held only around the pipeline call: that is the part that mutates
+        # shared scheduler state. Post-processing below works on the result.
+        with self._call_lock:
+            result = pipe(
+                prompt,
+                negative_prompt=req.params.get("negative_prompt") or None,
+                num_inference_steps=int(req.params.get("steps", 8)),
+                guidance_scale=float(req.params.get("guidance_scale", 7.0)),
+                audio_end_in_s=seconds,
+                generator=generator,
+            )
 
         audio = result.audios[0]
         arr = audio.to(torch.float32).cpu().numpy() if hasattr(audio, "to") else audio

@@ -105,9 +105,9 @@ services:
       # The ElevenLabs providers run here, not in the gateway. Blank means the
       # cloud fallback is simply not advertised.
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
-      # Leave at 1 unless you have measured the VRAM headroom: generation is
-      # serialised per service, and a shared Stable Audio 3 medium pipeline
-      # must not run two jobs at once.
+      # Leave at 1 unless you have measured the VRAM headroom for two models
+      # generating at once. Jobs that share one Stable Audio 3 pipeline are
+      # serialised on it automatically either way.
       MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
       MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
