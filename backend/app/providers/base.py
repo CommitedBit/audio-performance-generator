@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import enum
 import io
+import threading
 import time
 import wave
 from dataclasses import dataclass, field
@@ -145,6 +146,9 @@ class Provider(abc.ABC):
     def __init__(self) -> None:
         self._model = None
         self._last_used: float = 0.0
+        # Guards the check-and-load in load(). Per instance, so two different
+        # models can still load in parallel.
+        self._load_lock = threading.Lock()
 
     # -- capability reporting -------------------------------------------------
 
@@ -168,10 +172,19 @@ class Provider(abc.ABC):
         """Construct and return the underlying model. Called once, lazily."""
 
     def load(self) -> object:
-        if self._model is None:
-            self._model = self._load()
+        # Double-checked: an already-loaded model returns without touching the
+        # lock. Without the lock, two jobs for the same unloaded provider (with
+        # MAX_CONCURRENT_JOBS > 1) both saw None and both ran _load(), building
+        # two multi-GB copies at once -- an avoidable VRAM OOM -- and caching
+        # whichever finished last while the other job ran on an orphan.
+        model = self._model
+        if model is None:
+            with self._load_lock:
+                if self._model is None:
+                    self._model = self._load()
+                model = self._model
         self._last_used = time.monotonic()
-        return self._model
+        return model
 
     def unload(self) -> None:
         if self._model is None:
