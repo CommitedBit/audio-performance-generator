@@ -49,22 +49,34 @@ log = logging.getLogger(__name__)
 # Peak VRAM at max length, from Stability's published benchmark table.
 PEAK_VRAM_GB = {"medium": 6.52, "small": 2.40}
 
-# The loader below uses diffusers' StableAudio3Pipeline, which first ships in
-# diffusers 0.40.0. That release requires huggingface-hub >=1.23, while
-# ACE-Step's transformers <4.58 requires huggingface-hub <1.0 -- so this cannot
-# be satisfied in an image that also holds ACE-Step. The split topology's
-# voice/sfx image is where it can.
+# Two loaders, tried in order:
+#
+#   1. The official `stable_audio_3` package (StableAudioModel). Preferred, and
+#      the one that works in the UNIFIED image: its inference path imports only
+#      AutoConfig / AutoTokenizer / T5GemmaEncoderModel from transformers and
+#      hf_hub_download / try_to_load_from_cache from huggingface-hub -- all
+#      present in transformers 4.57.6 and huggingface-hub 0.36.2, checked
+#      against the pinned sources. (Its declared >=5.8 / >=1.7.1 are looser
+#      than what it actually calls.)
+#   2. diffusers' StableAudio3Pipeline, a fallback. It first ships in diffusers
+#      0.40.0, which requires huggingface-hub >=1.23 -- so it can never share
+#      an image with ACE-Step, whose transformers <4.58 needs hub <1.0.
 SA3_DIFFUSERS_MIN = (0, 40, 0)
+HF_REPO_PREFIX = "stabilityai/stable-audio-3-"
 
 
-def _loader_problem() -> str:
-    """Why the implemented loader cannot run here, or "" if it can.
+def _official_available() -> bool:
+    return importlib.util.find_spec("stable_audio_3") is not None
+
+
+def _diffusers_problem() -> str:
+    """Why the diffusers fallback cannot run here, or "" if it can.
 
     Checked from package metadata rather than by importing diffusers, which
     pulls in torch and is too slow for a discovery path called per request.
     """
     if importlib.util.find_spec("diffusers") is None:
-        return "diffusers is not installed; the Stable Audio 3 loader uses its StableAudio3Pipeline"
+        return "diffusers is not installed"
     try:
         version = importlib.metadata.version("diffusers")
     except importlib.metadata.PackageNotFoundError:
@@ -72,12 +84,68 @@ def _loader_problem() -> str:
     m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", version)
     have = tuple(int(x or 0) for x in m.groups()) if m else (0, 0, 0)
     if have < SA3_DIFFUSERS_MIN:
-        return (
-            f"diffusers {version} has no StableAudio3Pipeline (first in 0.40.0, which needs "
-            "huggingface-hub >=1.23 and so cannot share an image with ACE-Step); "
-            "run Stable Audio 3 in the split topology (compose.gpu.split.yml)"
-        )
+        return f"diffusers {version} has no StableAudio3Pipeline (first in 0.40.0)"
     return ""
+
+
+def _loader_problem() -> str:
+    """Why no Stable Audio 3 loader can run here, or "" if one can."""
+    if _official_available():
+        return ""
+    problem = _diffusers_problem()
+    if not problem:
+        return ""
+    return f"no usable loader: the stable-audio-3 package is not installed and {problem}"
+
+
+class _OfficialRunner:
+    """StableAudioModel behind the call the provider makes."""
+
+    kind = "stable-audio-3"
+
+    def __init__(self, model) -> None:
+        self.model = model
+        self.sample_rate = int(model.model.sample_rate)
+
+    def run(self, prompt, negative_prompt, seconds, steps, cfg, seed):
+        # Returns [batch, channels, samples]. cfg_scale / negative_prompt only
+        # take effect on the -base checkpoints; the post-trained ones ignore them.
+        audio = self.model.generate(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            duration=seconds,
+            steps=steps,
+            cfg_scale=cfg,
+            batch_size=1,
+            seed=-1 if seed is None else int(seed),
+        )
+        return audio[0], self.sample_rate
+
+
+class _DiffusersRunner:
+    """diffusers' StableAudio3Pipeline behind the same call."""
+
+    kind = "diffusers"
+
+    def __init__(self, pipe, device: str) -> None:
+        self.pipe = pipe
+        self.device = device
+        self.sample_rate = int(getattr(getattr(pipe, "vae", None), "sampling_rate", 44100))
+
+    def run(self, prompt, negative_prompt, seconds, steps, cfg, seed):
+        import torch
+
+        generator = None if seed is None else torch.Generator(device=self.device).manual_seed(int(seed))
+        result = self.pipe(
+            prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=steps,
+            guidance_scale=cfg,
+            audio_end_in_s=seconds,
+            generator=generator,
+        )
+        return result.audios[0], self.sample_rate
+
 
 # One pipeline per (model id, device, dtype), shared by every provider instance
 # that asks for it. With SA3_MODEL pinned to the medium checkpoint, the sfx and
@@ -126,15 +194,18 @@ class StableAudio3Provider(Provider):
         # Never cleared on unload, so a generate() racing an idle unload can
         # never find it missing; the next load always overwrites it first.
         self._call_lock = threading.Lock()
+        # SA3_MODEL may be the HF repo id or the official short name
+        # ("medium", "small-sfx"); each loader gets the form it expects.
+        short = self.model_id.rsplit("/", 1)[-1]
+        self.official_name = short[len("stable-audio-3-"):] if short.startswith("stable-audio-3-") else short
+        self.hf_repo = self.model_id if "/" in self.model_id else HF_REPO_PREFIX + self.official_name
         self.tier = "medium" if "medium" in self.model_id else "small"
         self.name = f"Stable Audio 3 {self.tier} ({capability.value})"
         self.max_seconds = 380.0 if self.tier == "medium" else 120.0
 
     def _deps_present(self) -> bool:
-        # Only what the loader actually uses counts. It builds diffusers'
-        # StableAudio3Pipeline and never touches the official stable_audio_3
-        # package, so that package being importable must not report this
-        # provider ready -- it did, and every generation then failed in load.
+        # Only a loader that can actually run counts: the official package, or
+        # a diffusers new enough to have StableAudio3Pipeline.
         return _loader_problem() == ""
 
     def available(self) -> bool:
@@ -156,7 +227,8 @@ class StableAudio3Provider(Provider):
 
         device = get_settings().device
         dtype = torch.float16 if device == "cuda" else torch.float32
-        key = (self.model_id, device, str(dtype))
+        loader = "stable-audio-3" if _official_available() else "diffusers"
+        key = (f"{loader}:{self.hf_repo}", device, str(dtype))
 
         # Held for the whole build so two providers asking for the same weights
         # at once cannot both construct a copy.
@@ -165,7 +237,7 @@ class StableAudio3Provider(Provider):
             if pipe is not None:
                 log.info("%s reusing the already-loaded %s pipeline", self.id, self.model_id)
             else:
-                pipe = self._build_pipeline(device, dtype)
+                pipe = self._build_pipeline(device, dtype, loader)
                 _SHARED[key] = pipe
                 _CALL_LOCKS[key] = threading.Lock()
             _HOLDERS.setdefault(key, set()).add(self.id)
@@ -174,25 +246,26 @@ class StableAudio3Provider(Provider):
         self._pipeline_key = key
         return pipe
 
-    def _build_pipeline(self, device: str, dtype):
-        token = os.getenv("HF_TOKEN") or None
-
+    def _build_pipeline(self, device: str, dtype, loader: str):
         if not _flash_attn_present():
             # Informational only: the SDPA fallback is math-equivalent, just slower.
             log.info("flash-attn absent; using the SDPA attention fallback (slower, same output)")
+        log.info("loading %s via %s on %s (peak ~%.1f GB)", self.hf_repo, loader, device, PEAK_VRAM_GB[self.tier])
 
-        log.info("loading %s on %s (peak ~%.1f GB)", self.model_id, device, PEAK_VRAM_GB[self.tier])
+        if loader == "stable-audio-3":
+            from stable_audio_3 import StableAudioModel
 
-        try:
-            from diffusers import StableAudio3Pipeline
-        except ImportError as exc:
-            raise RuntimeError(
-                "diffusers does not expose StableAudio3Pipeline in this version; "
-                "upgrade diffusers or install the official stable-audio-3 package"
-            ) from exc
+            # Downloads through huggingface-hub, which reads HF_TOKEN and HF_HOME
+            # from the environment -- so the gated weights land on the models
+            # volume. Half precision only on CUDA.
+            model = StableAudioModel.from_pretrained(self.official_name, device=device, model_half=device == "cuda")
+            return _OfficialRunner(model)
 
-        pipe = StableAudio3Pipeline.from_pretrained(self.model_id, torch_dtype=dtype, token=token)
-        return pipe.to(device)
+        from diffusers import StableAudio3Pipeline
+
+        token = os.getenv("HF_TOKEN") or None
+        pipe = StableAudio3Pipeline.from_pretrained(self.hf_repo, torch_dtype=dtype, token=token)
+        return _DiffusersRunner(pipe.to(device), device)
 
     def unload(self) -> None:
         if self._model is None:
@@ -225,10 +298,7 @@ class StableAudio3Provider(Provider):
         ]
 
     def generate(self, req: GenerateRequest) -> AudioResult:
-        import torch
-
         pipe = self.load()
-        device = get_settings().device
 
         prompt = req.prompt.strip()
         if not prompt:
@@ -238,25 +308,19 @@ class StableAudio3Provider(Provider):
         seconds = float(req.seconds or req.params.get("seconds") or default_len)
         seconds = max(1.0, min(seconds, self.max_seconds))
 
-        generator = None
-        if req.seed is not None:
-            generator = torch.Generator(device=device).manual_seed(int(req.seed))
-
-        # Held only around the pipeline call: that is the part that mutates
+        # Held only around the model call: that is the part that mutates
         # shared scheduler state. Post-processing below works on the result.
         with self._call_lock:
-            result = pipe(
+            audio, sr = pipe.run(
                 prompt,
-                negative_prompt=req.params.get("negative_prompt") or None,
-                num_inference_steps=int(req.params.get("steps", 8)),
-                guidance_scale=float(req.params.get("guidance_scale", 7.0)),
-                audio_end_in_s=seconds,
-                generator=generator,
+                req.params.get("negative_prompt") or None,
+                seconds,
+                int(req.params.get("steps", 8)),
+                float(req.params.get("guidance_scale", 7.0)),
+                req.seed,
             )
 
-        audio = result.audios[0]
-        arr = audio.to(torch.float32).cpu().numpy() if hasattr(audio, "to") else audio
-        sr = int(getattr(getattr(pipe, "vae", None), "sampling_rate", 44100))
+        arr = audio.detach().float().cpu().numpy() if hasattr(audio, "detach") else audio
         n = arr.shape[-1]
         return AudioResult(audio=pcm_to_wav(arr, sr), sample_rate=sr, duration=n / sr, provider_id=self.id)
 

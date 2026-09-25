@@ -238,6 +238,13 @@ class Provider(abc.ABC):
         if model is None:
             with self._load_lock:
                 if self._model is None:
+                    # Checked here, under the lock, not only in available():
+                    # jobs admitted before a failure was recorded are already
+                    # queued past discovery, and without this each of them
+                    # re-ran the same doomed multi-GB load in turn.
+                    failure = self.load_failure()
+                    if failure:
+                        raise RuntimeError(failure)
                     try:
                         self._model = self._load()
                     except Exception as exc:

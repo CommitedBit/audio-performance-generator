@@ -14,6 +14,25 @@ from .providers.base import Capability, Provider
 
 log = logging.getLogger(__name__)
 
+# Preference among providers of the same capability, best first. The model
+# service and the gateway both rank with this, so which provider is the default
+# never depends on which service hosts it -- in the split topology the gateway
+# used to take the first match in upstream order, which silently made Stable
+# Audio the music default because ACE-Step lives on the second upstream.
+PREFERENCE = ("chatterbox", "acestep", "stable-audio-3-sfx", "stable-audio-3-music", "musicgen")
+
+
+def preference_rank(provider_id: str) -> tuple[int, int]:
+    """Sort key: known local providers in PREFERENCE order, then any other local
+    provider, then cloud fallbacks, then the placeholder stubs."""
+    if provider_id.startswith("stub"):
+        return (3, 0)
+    if provider_id.startswith("elevenlabs"):
+        return (2, 0)
+    if provider_id in PREFERENCE:
+        return (0, PREFERENCE.index(provider_id))
+    return (1, 0)
+
 
 def _build() -> list[Provider]:
     from .providers.stub import StubMusic, StubSfx, StubVoice
@@ -84,11 +103,8 @@ class Registry:
         candidates = [p for p in self.for_capability(capability) if p.available()]
         if not candidates:
             return None
-        local = [p for p in candidates if not p.id.startswith("elevenlabs") and not p.id.startswith("stub")]
-        if local:
-            return local[0]
-        non_stub = [p for p in candidates if not p.id.startswith("stub")]
-        return (non_stub or candidates)[0]
+        # sorted() is stable, so ties keep registration order.
+        return sorted(candidates, key=lambda p: preference_rank(p.id))[0]
 
     def resolve(self, capability: Capability, provider_id: str | None) -> Provider:
         if provider_id:

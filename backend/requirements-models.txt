@@ -59,6 +59,13 @@ s3tokenizer
 onnx>=1.16.0
 
 # ---- stable-audio-3 runtime --------------------------------------------------
+# In THIS image Stable Audio 3 loads through its official stable_audio_3
+# package. Its inference path imports only AutoConfig / AutoTokenizer /
+# T5GemmaEncoderModel from transformers and hf_hub_download /
+# try_to_load_from_cache from huggingface-hub, all present in the versions
+# pinned above -- checked against the pinned sources. diffusers'
+# StableAudio3Pipeline cannot be used here: it first ships in diffusers 0.40.0,
+# which needs huggingface-hub >=1.23, and the hub cap above is ACE-Step's.
 # flash-attn is NOT listed on purpose. stable_audio_3/models/transformer.py
 # wraps its import in try/except and falls back through flex_attention ->
 # chunked-halo SDPA -> full masked SDPA, which its own comments describe as

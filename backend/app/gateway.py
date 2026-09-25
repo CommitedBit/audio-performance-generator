@@ -32,6 +32,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from . import storage
 from .auth import api_key_middleware
 from .config import get_settings
+from .registry import preference_rank
 from .schemas import GenerateBody, SpeechBody
 
 settings = get_settings()
@@ -122,10 +123,9 @@ def _defaults(providers: list[dict]) -> dict[str, str | None]:
     out: dict[str, str | None] = {}
     for cap in ("voice", "music", "sfx"):
         usable = [p for p in providers if p["capability"] == cap and p["available"]]
-        local = [p for p in usable if not p["id"].startswith(("elevenlabs", "stub"))]
-        non_stub = [p for p in usable if not p["id"].startswith("stub")]
-        pick = (local or non_stub or usable)
-        out[cap] = pick[0]["id"] if pick else None
+        # Ranked the same way as each model service, not by upstream order.
+        usable.sort(key=lambda p: preference_rank(p["id"]))
+        out[cap] = usable[0]["id"] if usable else None
     return out
 
 
