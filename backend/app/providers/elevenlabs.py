@@ -41,6 +41,7 @@ class ElevenLabsVoice(Provider):
     capability = Capability.VOICE
     license = "commercial SaaS -- your ElevenLabs plan terms apply"
     requires_gpu = False
+    remote = True
     description = "Cloud TTS. Sends text to ElevenLabs; requires an API key and network egress."
 
     def __init__(self) -> None:
@@ -141,6 +142,7 @@ class ElevenLabsSfx(Provider):
     capability = Capability.SFX
     license = "commercial SaaS -- your ElevenLabs plan terms apply"
     requires_gpu = False
+    remote = True
     description = "Cloud sound-effect generation."
 
     def available(self) -> bool:

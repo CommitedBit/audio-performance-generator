@@ -26,6 +26,11 @@ services:
       # fallback must be listed explicitly; without ELEVENLABS_API_KEY it is
       # still simply reported unavailable.
       PROVIDERS: chatterbox,stable-audio-3-sfx,stable-audio-3-music,elevenlabs-voice,elevenlabs-sfx
+      # Separate containers have separate job queues, so MAX_CONCURRENT_JOBS
+      # alone would limit each container, not the card. These GPU slots are
+      # lock files on the shared models volume that BOTH services take, so the
+      # limit applies to the GPU as a whole. Keep the path identical on both.
+      GPU_LOCK_FILE: /models/.gpu-slot
 
   music:
     build:
@@ -44,6 +49,7 @@ services:
       HF_HOME: /models
       HF_TOKEN: ${HF_TOKEN:-}
       PROVIDERS: acestep
+      GPU_LOCK_FILE: /models/.gpu-slot
       MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
       MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
       PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True

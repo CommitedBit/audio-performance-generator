@@ -83,6 +83,13 @@ async def _get_json(client: httpx.AsyncClient, key: str, path: str) -> dict | No
         return None
 
 
+# Last service seen serving each provider id. Discovery only reports what is
+# reachable right now, so without this a provider whose service is briefly down
+# looked exactly like a provider that never existed.
+_LAST_OWNER: dict[str, str] = {}
+RETRY_AFTER_SECONDS = "5"
+
+
 async def _gather_models() -> tuple[list[dict], dict[str, str], list[str]]:
     """Fan out to every upstream and merge. Returns (providers, owner_map, down)."""
     providers: list[dict] = []
@@ -107,6 +114,7 @@ async def _gather_models() -> tuple[list[dict], dict[str, str], list[str]]:
             owner[p["id"]] = key
             providers.append({**p, "service": key})
 
+    _LAST_OWNER.update(owner)
     return providers, owner, down
 
 
@@ -148,10 +156,24 @@ async def list_models():
 
 async def _resolve_service(capability: str, provider_id: str | None) -> tuple[str, str]:
     """Pick the upstream that serves this request. Returns (service_key, provider_id)."""
-    providers, owner, _ = await _gather_models()
+    providers, owner, down = await _gather_models()
 
     if provider_id:
         if provider_id not in owner:
+            # A 404 tells a client the id is wrong and not to retry, so only
+            # say that when every upstream answered. If the provider's last
+            # known service -- or any service -- is unreachable, the lookup is
+            # inconclusive: 503 with Retry-After.
+            last = _LAST_OWNER.get(provider_id)
+            retry = {"Retry-After": RETRY_AFTER_SECONDS}
+            if last in down:
+                raise HTTPException(
+                    503, f"provider {provider_id} is served by {last}, which is unreachable; retry shortly",
+                    headers=retry)
+            if down:
+                raise HTTPException(
+                    503, f"provider {provider_id} not found, but {', '.join(down)} is unreachable and may serve it; retry shortly",
+                    headers=retry)
             raise HTTPException(404, f"unknown provider: {provider_id}")
         match = next(p for p in providers if p["id"] == provider_id)
         if match["capability"] != capability:

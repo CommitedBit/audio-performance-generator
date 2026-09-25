@@ -141,6 +141,9 @@ class Provider(abc.ABC):
     # Weights licence, shown in the UI. Kept deliberately explicit: several of
     # these models ship permissive CODE with non-commercial WEIGHTS.
     license: str = "unknown"
+    # True for providers that run elsewhere (a cloud API). They never touch the
+    # local GPU, so they skip the cross-service GPU slot.
+    remote: bool = False
     requires_gpu: bool = True
     description: str = ""
 
