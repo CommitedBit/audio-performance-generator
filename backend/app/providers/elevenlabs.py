@@ -34,14 +34,86 @@ FALLBACK_VOICES = (
     VoiceInfo(id="21m00Tcm4TlvDq8ikWAM", name="Rachel (default)", description="premade"),
 )
 
+# A rejected key. Both ElevenLabs providers share one key, so a rejection seen
+# by either -- speech, sfx, or the background voice refresh -- takes both out of
+# availability. Without this, a present-but-invalid key stayed "available":
+# the cloud generate() paths never go through load(), so the base class's
+# load-failure record never saw their 401s, and explicit requests and default
+# routing kept picking a provider known to fail.
+AUTH_STATUSES = {401, 403}
+_auth_lock = threading.Lock()
+_auth_error: str | None = None
+_auth_failed_at = 0.0
 
-class ElevenLabsVoice(Provider):
+
+def _record_auth_failure(status: int, text: str) -> None:
+    global _auth_error, _auth_failed_at
+    with _auth_lock:
+        _auth_error = f"ElevenLabs rejected the API key ({status}): {text[:200]}"
+        _auth_failed_at = time.monotonic()
+    log.warning("ElevenLabs credential rejected (%s); marking ElevenLabs unavailable", status)
+
+
+def _clear_auth_failure() -> None:
+    global _auth_error
+    with _auth_lock:
+        _auth_error = None
+
+
+def _auth_problem() -> str | None:
+    """The recorded rejection while its cooldown runs, else None.
+
+    Uses PROVIDER_RETRY_SECONDS like load failures: after it, one request may
+    try again -- a key that was fixed, or a quota that reset, then recovers.
+    """
+    with _auth_lock:
+        if _auth_error is None:
+            return None
+        remaining = get_settings().provider_retry_seconds - (time.monotonic() - _auth_failed_at)
+        if remaining <= 0:
+            return None
+        return f"{_auth_error} (retrying in {remaining:.0f}s)"
+
+
+class _ElevenLabsBase(Provider):
+    remote = True
+
+    def load_failure(self) -> str | None:
+        # Folded into the base class's availability checks, which consult
+        # load_failure() in both available() and unavailable_reason().
+        return _auth_problem() or super().load_failure()
+
+    @staticmethod
+    def _post(url: str, key: str, body: dict):
+        """POST to ElevenLabs, failing fast on a known-rejected key and
+        recording a fresh rejection so discovery stops advertising it."""
+        import httpx
+
+        problem = _auth_problem()
+        if problem:
+            raise RuntimeError(problem)
+        r = httpx.post(
+            url,
+            headers={"xi-api-key": key, "Accept": "audio/mpeg", "Content-Type": "application/json"},
+            json=body,
+            timeout=TIMEOUT,
+        )
+        if r.status_code in AUTH_STATUSES:
+            _record_auth_failure(r.status_code, r.text)
+        if r.status_code >= 400:
+            # The original client threw away status and body, making quota and
+            # auth failures indistinguishable. Keep both.
+            raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:400]}")
+        _clear_auth_failure()
+        return r
+
+
+class ElevenLabsVoice(_ElevenLabsBase):
     id = "elevenlabs-voice"
     name = "ElevenLabs (cloud)"
     capability = Capability.VOICE
     license = "commercial SaaS -- your ElevenLabs plan terms apply"
     requires_gpu = False
-    remote = True
     description = "Cloud TTS. Sends text to ElevenLabs; requires an API key and network egress."
 
     def __init__(self) -> None:
@@ -82,7 +154,12 @@ class ElevenLabsVoice(Provider):
                 headers={"xi-api-key": get_settings().elevenlabs_api_key or ""},
                 timeout=VOICES_FETCH_TIMEOUT,
             )
+            # The refresh doubles as a passive credential check: a rejected key
+            # is noticed here, before anyone tries to generate with it.
+            if r.status_code in AUTH_STATUSES:
+                _record_auth_failure(r.status_code, r.text)
             r.raise_for_status()
+            _clear_auth_failure()
             fetched = [
                 VoiceInfo(id=v["voice_id"], name=v.get("name", v["voice_id"]), description=v.get("category", ""))
                 for v in r.json().get("voices", [])
@@ -106,7 +183,6 @@ class ElevenLabsVoice(Provider):
         ]
 
     def generate(self, req: GenerateRequest) -> AudioResult:
-        import httpx
 
         key = get_settings().elevenlabs_api_key
         if not key:
@@ -121,28 +197,17 @@ class ElevenLabsVoice(Provider):
                 "similarity_boost": float(req.params.get("similarity_boost", 0.75)),
             },
         }
-        r = httpx.post(
-            f"{API_ROOT}/text-to-speech/{voice}",
-            headers={"xi-api-key": key, "Accept": "audio/mpeg", "Content-Type": "application/json"},
-            json=body,
-            timeout=TIMEOUT,
-        )
-        if r.status_code >= 400:
-            # The original client threw away status and body, making quota and
-            # auth failures indistinguishable. Keep both.
-            raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:400]}")
-
+        r = self._post(f"{API_ROOT}/text-to-speech/{voice}", key, body)
         audio = r.content
         return AudioResult(audio=audio, sample_rate=44100, duration=0.0, provider_id=self.id, mime="audio/mpeg")
 
 
-class ElevenLabsSfx(Provider):
+class ElevenLabsSfx(_ElevenLabsBase):
     id = "elevenlabs-sfx"
     name = "ElevenLabs SFX (cloud)"
     capability = Capability.SFX
     license = "commercial SaaS -- your ElevenLabs plan terms apply"
     requires_gpu = False
-    remote = True
     description = "Cloud sound-effect generation."
 
     def available(self) -> bool:
@@ -161,7 +226,6 @@ class ElevenLabsSfx(Provider):
         ]
 
     def generate(self, req: GenerateRequest) -> AudioResult:
-        import httpx
 
         key = get_settings().elevenlabs_api_key
         if not key:
@@ -172,14 +236,7 @@ class ElevenLabsSfx(Provider):
         if seconds:
             body["duration_seconds"] = float(seconds)
 
-        r = httpx.post(
-            f"{API_ROOT}/sound-generation",
-            headers={"xi-api-key": key, "Accept": "audio/mpeg", "Content-Type": "application/json"},
-            json=body,
-            timeout=TIMEOUT,
-        )
-        if r.status_code >= 400:
-            raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:400]}")
+        r = self._post(f"{API_ROOT}/sound-generation", key, body)
 
         return AudioResult(
             audio=r.content, sample_rate=44100, duration=float(seconds or 0.0),

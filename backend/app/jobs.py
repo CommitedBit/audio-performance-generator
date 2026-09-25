@@ -42,6 +42,9 @@ class Job:
     audio_id: str | None = None
     error: str | None = None
     meta: dict = field(default_factory=dict)
+    # "local" jobs share the GPU-sized semaphore; "remote" (cloud) jobs run in a
+    # separate lane so they never wait behind local inference.
+    lane: str = "local"
     _future: asyncio.Future | None = field(default=None, repr=False, compare=False)
 
     def public(self) -> dict:
@@ -61,6 +64,10 @@ class Job:
         }
 
 
+# Concurrent cloud requests allowed in the remote lane.
+REMOTE_CONCURRENCY = 4
+
+
 class JobQueue:
     def __init__(self, max_concurrent: int = 1, retain: int = 200) -> None:
         self._jobs: dict[str, Job] = {}
@@ -68,13 +75,19 @@ class JobQueue:
         self._retain = retain
         self._sem = asyncio.Semaphore(max_concurrent)
         self._max_concurrent = max_concurrent
+        # Cloud providers use no local GPU, so MAX_CONCURRENT_JOBS must not gate
+        # them. They were queued behind local jobs: an ElevenLabs line could sit
+        # behind a 600 s ACE-Step job and blow past the 180 s inline speech wait.
+        # Bounded anyway, so a burst cannot open unlimited outbound requests.
+        self._remote_sem = asyncio.Semaphore(REMOTE_CONCURRENCY)
 
-    def submit(self, kind: str, fn: Callable[[Job], dict], meta: dict | None = None) -> Job:
+    def submit(self, kind: str, fn: Callable[[Job], dict], meta: dict | None = None,
+               *, remote: bool = False) -> Job:
         """Queue `fn`, which runs on a worker thread and returns a result dict.
 
         `fn` receives its own Job so it can report progress.
         """
-        job = Job(id=uuid.uuid4().hex, kind=kind, meta=meta or {})
+        job = Job(id=uuid.uuid4().hex, kind=kind, meta=meta or {}, lane="remote" if remote else "local")
         self._jobs[job.id] = job
         self._order.append(job.id)
         self._evict()
@@ -82,9 +95,10 @@ class JobQueue:
         return job
 
     async def _run(self, job: Job, fn: Callable[[Job], dict]) -> dict:
-        waiting = [j for j in self._jobs.values() if j.status is JobStatus.QUEUED]
+        # Position counts only jobs waiting in the same lane.
+        waiting = [j for j in self._jobs.values() if j.status is JobStatus.QUEUED and j.lane == job.lane]
         job.meta["queue_position"] = max(0, len(waiting) - 1)
-        async with self._sem:
+        async with self._sem if job.lane == "local" else self._remote_sem:
             if job.status is JobStatus.CANCELLED:
                 return {}
             job.status = JobStatus.RUNNING

@@ -29,6 +29,7 @@ from .gpu_lock import gpu_slot
 from .jobs import Job, JobQueue, JobStatus
 from .providers.base import Capability, GenerateRequest, check_audio_sane, wav_duration
 from .registry import get_registry
+from .rng import rng_scope
 from .schemas import GenerateBody, SpeechBody
 
 settings = get_settings()
@@ -143,7 +144,10 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
             job.message = f"generating with {provider.id}"
             # Held for the whole generation so the idle sweeper cannot unload
             # the model while this job is still running on it.
-            with provider.in_use():
+            # Local stacks share PyTorch's global generator; a seeded job holds
+            # it exclusively so a concurrent job cannot disturb its draws.
+            rng = contextlib.nullcontext() if provider.remote else rng_scope(seeded=req.seed is not None)
+            with rng, provider.in_use():
                 result = provider.generate(req)
 
         # Fail loudly on silent/degenerate output rather than storing a clip of
@@ -249,7 +253,7 @@ async def generate_speech(body: SpeechBody, wait: bool = Query(True)):
         params=params,
     )
     job = queue.submit("speech", _run_generation(provider, req, "voice"),
-                       meta={"provider": provider.id})
+                       meta={"provider": provider.id}, remote=provider.remote)
     if wait:
         await queue.wait_for(job, timeout=SPEECH_INLINE_WAIT)
         if job.status is JobStatus.ERROR:
@@ -269,7 +273,8 @@ async def _enqueue(capability: Capability, body: GenerateBody, kind: str):
         seed=body.seed,
         params=params,
     )
-    job = queue.submit(kind, _run_generation(provider, req, kind), meta={"provider": provider.id})
+    job = queue.submit(kind, _run_generation(provider, req, kind), meta={"provider": provider.id},
+                       remote=provider.remote)
     return JSONResponse(_job_payload(job), status_code=202)
 
 
