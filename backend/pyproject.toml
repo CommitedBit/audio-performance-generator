@@ -1,0 +1,74 @@
+[project]
+name = "audio-performance-generator-api"
+version = "0.1.0"
+description = "Local audio generation API: TTS, music and SFX behind one provider interface"
+requires-python = ">=3.10"
+
+# Base install: the API runs with these alone, serving the stub providers.
+# Model weights and heavy ML deps are opt-in extras so the image stays small
+# and CI does not pull 6 GB of CUDA wheels.
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "numpy>=1.24",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# These extras are for installing ONE capability outside the GPU image -- dev,
+# CPU, or pre-Blackwell machines. The GPU image does not use them: the three
+# model stacks declare mutually incompatible pins, so it installs the packages
+# --no-deps against requirements-models*.txt via the Dockerfile's MODELS arg.
+# Each extra below either installs a working loader on its own or is absent.
+
+# Local text-to-speech. Chatterbox is MIT for code AND weights. Same version the
+# image installs. Its own torch==2.6.0 pin has no sm_120 kernels; on an RTX 50
+# card use the image, which overrides it.
+tts = ["chatterbox-tts==0.1.7"]
+
+# Local SFX / ambience via Stable Audio 3. The official package is the loader
+# StableAudio3Provider prefers; it is not on PyPI, so it comes from git at the
+# same commit the image pins. diffusers is the fallback loader, and only 0.40.0+
+# has StableAudio3Pipeline -- a lower floor installed cleanly and left the
+# provider with no usable loader at all.
+sfx = [
+    "stable-audio-3 @ git+https://github.com/Stability-AI/stable-audio-3@779434a90819",
+    "diffusers>=0.40.0",
+]
+
+# Optional speed-up for Stable Audio 3. NOT required: its attention falls back to
+# a math-equivalent SDPA cascade without it. Builds from source (needs a CUDA
+# toolchain), so it is never pulled in implicitly.
+flash = ["flash-attn>=2.6"]
+
+# There is deliberately no `music` extra and no `all` extra:
+#   - ACE-Step 1.5 is not on PyPI (the PyPI `ace-step` is the unrelated 0.1.0),
+#     and it resolves its nano-vllm dependency from a local path inside its own
+#     repo, which no resolver honours when ACE-Step is a dependency. The image
+#     installs it --no-deps against requirements-models-acestep.txt.
+#   - `all` asked one resolver for Chatterbox (transformers==5.2.0) and ACE-Step
+#     (transformers <4.58) together, which no resolution can satisfy -- the
+#     reason requirements-models.txt exists.
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
+
+# Pin the CUDA wheel index explicitly. Without this you can silently install
+# the default torch wheel, which bundles its own full copy of CUDA -- two
+# toolchains in one image and several wasted GB.
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI *requires* File()/Form()/Depends() calls in argument defaults.
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
