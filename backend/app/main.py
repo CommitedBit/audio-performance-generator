@@ -27,7 +27,7 @@ from .auth import api_key_middleware
 from .config import get_settings
 from .gpu_lock import gpu_slot
 from .jobs import Job, JobQueue, JobStatus
-from .providers.base import Capability, GenerateRequest, check_audio_sane
+from .providers.base import Capability, GenerateRequest, check_audio_sane, wav_duration
 from .registry import get_registry
 from .schemas import GenerateBody, SpeechBody
 
@@ -149,8 +149,14 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
         # Fail loudly on silent/degenerate output rather than storing a clip of
         # nothing and reporting success. Only meaningful for WAV; the cloud
         # providers return mp3 and are skipped.
+        # For WAV the duration is MEASURED from the file being stored, not taken
+        # from the provider: the frontend trusts this value to size the clip,
+        # and a provider computing it along the wrong axis produced a ~0 s clip
+        # for a full-length stereo file. mp3 (cloud) keeps the reported value.
+        duration = result.duration
         if result.mime == "audio/wav":
             check_audio_sane(result.audio)
+            duration = wav_duration(result.audio)
 
         audio_id = storage.save_audio(
             result.audio,
@@ -160,14 +166,14 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
                 "provider": result.provider_id,
                 "prompt": req.prompt[:500],
                 "sample_rate": result.sample_rate,
-                "duration": result.duration,
+                "duration": duration,
                 "mime": result.mime,
             },
         )
         return {
             "audio_id": audio_id,
             "meta": {
-                "duration": result.duration,
+                "duration": duration,
                 "sample_rate": result.sample_rate,
                 "mime": result.mime,
                 "provider": result.provider_id,

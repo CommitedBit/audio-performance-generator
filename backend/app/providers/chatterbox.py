@@ -98,6 +98,8 @@ class ChatterboxProvider(Provider):
         return AudioResult(
             audio=audio,
             sample_rate=sr,
-            duration=len(arr) / sr,
+            # Samples are the last axis; len() would count channels if the
+            # output were ever multi-channel.
+            duration=arr.shape[-1] / sr,
             provider_id=self.id,
         )

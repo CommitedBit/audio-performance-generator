@@ -96,7 +96,9 @@ class MusicGenProvider(Provider):
             arr = arr[0]
 
         audio = pcm_to_wav(arr, sr)
-        return AudioResult(audio=audio, sample_rate=sr, duration=len(arr) / sr, provider_id=self.id)
+        # Samples are the LAST axis. A stereo checkpoint leaves arr as
+        # (2, samples), where len(arr) is 2 -- a ~0 s duration.
+        return AudioResult(audio=audio, sample_rate=sr, duration=arr.shape[-1] / sr, provider_id=self.id)
 
 
 def get_device() -> str:
