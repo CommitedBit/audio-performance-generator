@@ -86,6 +86,18 @@ class ChatterboxProvider(Provider):
         if not text:
             raise ValueError("prompt is empty")
 
+        if req.seed is not None:
+            import torch
+
+            # Chatterbox takes no seed argument and samples from PyTorch's
+            # global generator throughout (T3 torch.multinomial, S3Gen
+            # randn/rand); its only Python `random` use is in training-only
+            # compute_loss. So seeding the global generator makes the output
+            # reproducible. The job runner holds the RNG scope exclusively for
+            # a seeded job, so nothing else draws from it between here and the
+            # last sample. Seeds CPU and every CUDA device.
+            torch.manual_seed(int(req.seed))
+
         wav = model.generate(text, **kwargs)
         sr = int(getattr(model, "sr", 24000))
 
