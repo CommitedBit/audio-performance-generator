@@ -44,24 +44,44 @@ AUTH_STATUSES = {401, 403}
 _auth_lock = threading.Lock()
 _auth_error: str | None = None
 _auth_failed_at = 0.0
+# True while one caller holds the single post-cooldown retry. Without it, every
+# request arriving just after the cooldown expired saw "expired" and retried
+# the known-bad key at once -- up to the whole remote lane plus the voice
+# refresh -- instead of one attempt per window.
+_auth_probe = False
 
 
 def _record_auth_failure(status: int, text: str) -> None:
-    global _auth_error, _auth_failed_at
+    global _auth_error, _auth_failed_at, _auth_probe
     with _auth_lock:
         _auth_error = f"ElevenLabs rejected the API key ({status}): {text[:200]}"
         _auth_failed_at = time.monotonic()
+        _auth_probe = False
     log.warning("ElevenLabs credential rejected (%s); marking ElevenLabs unavailable", status)
 
 
 def _clear_auth_failure() -> None:
-    global _auth_error
+    global _auth_error, _auth_probe
     with _auth_lock:
         _auth_error = None
+        _auth_probe = False
+
+
+def _release_probe() -> None:
+    """Give up a claimed retry without settling it (a 5xx, a timeout): the
+    result said nothing about the key, so the next caller may probe again."""
+    global _auth_probe
+    with _auth_lock:
+        _auth_probe = False
+
+
+def _remaining() -> float:
+    return get_settings().provider_retry_seconds - (time.monotonic() - _auth_failed_at)
 
 
 def _auth_problem() -> str | None:
-    """The recorded rejection while its cooldown runs, else None.
+    """For availability: the rejection while its cooldown runs or a retry is
+    in flight, else None.
 
     Uses PROVIDER_RETRY_SECONDS like load failures: after it, one request may
     try again -- a key that was fixed, or a quota that reset, then recovers.
@@ -69,10 +89,33 @@ def _auth_problem() -> str | None:
     with _auth_lock:
         if _auth_error is None:
             return None
-        remaining = get_settings().provider_retry_seconds - (time.monotonic() - _auth_failed_at)
+        if _auth_probe:
+            return f"{_auth_error} (re-checking the key now)"
+        remaining = _remaining()
         if remaining <= 0:
             return None
         return f"{_auth_error} (retrying in {remaining:.0f}s)"
+
+
+def _auth_gate() -> tuple[str | None, bool]:
+    """For a request about to call ElevenLabs: (reason to fail fast, claimed).
+
+    Decided atomically under the lock. With no rejection on record the call
+    proceeds normally. Inside the cooldown, or while another caller is already
+    re-checking the key, it fails fast. The first caller after the cooldown
+    claims the one retry and proceeds; its result settles the state.
+    """
+    global _auth_probe
+    with _auth_lock:
+        if _auth_error is None:
+            return None, False
+        if _auth_probe:
+            return f"{_auth_error} (another request is re-checking the key)", False
+        remaining = _remaining()
+        if remaining > 0:
+            return f"{_auth_error} (retrying in {remaining:.0f}s)", False
+        _auth_probe = True
+        return None, True
 
 
 class _ElevenLabsBase(Provider):
@@ -89,22 +132,29 @@ class _ElevenLabsBase(Provider):
         recording a fresh rejection so discovery stops advertising it."""
         import httpx
 
-        problem = _auth_problem()
-        if problem:
-            raise RuntimeError(problem)
-        r = httpx.post(
-            url,
-            headers={"xi-api-key": key, "Accept": "audio/mpeg", "Content-Type": "application/json"},
-            json=body,
-            timeout=TIMEOUT,
-        )
-        if r.status_code in AUTH_STATUSES:
-            _record_auth_failure(r.status_code, r.text)
+        blocked, claimed = _auth_gate()
+        if blocked:
+            raise RuntimeError(blocked)
+        try:
+            r = httpx.post(
+                url,
+                headers={"xi-api-key": key, "Accept": "audio/mpeg", "Content-Type": "application/json"},
+                json=body,
+                timeout=TIMEOUT,
+            )
+            if r.status_code in AUTH_STATUSES:
+                claimed = False                 # settled: a fresh rejection window
+                _record_auth_failure(r.status_code, r.text)
+            elif r.status_code < 400:
+                claimed = False                 # settled: the key works
+                _clear_auth_failure()
+        finally:
+            if claimed:                         # inconclusive (5xx, 429, network)
+                _release_probe()
         if r.status_code >= 400:
             # The original client threw away status and body, making quota and
             # auth failures indistinguishable. Keep both.
             raise RuntimeError(f"ElevenLabs {r.status_code}: {r.text[:400]}")
-        _clear_auth_failure()
         return r
 
 
@@ -146,7 +196,13 @@ class ElevenLabsVoice(_ElevenLabsBase):
 
     def _refresh_voices(self) -> None:
         next_due = time.monotonic() + VOICES_RETRY
+        claimed = False
         try:
+            # Same gate as requests: a known-bad key costs no call here either,
+            # and the refresh may itself be the one post-cooldown retry.
+            blocked, claimed = _auth_gate()
+            if blocked:
+                return
             import httpx
 
             r = httpx.get(
@@ -157,8 +213,10 @@ class ElevenLabsVoice(_ElevenLabsBase):
             # The refresh doubles as a passive credential check: a rejected key
             # is noticed here, before anyone tries to generate with it.
             if r.status_code in AUTH_STATUSES:
+                claimed = False
                 _record_auth_failure(r.status_code, r.text)
             r.raise_for_status()
+            claimed = False
             _clear_auth_failure()
             fetched = [
                 VoiceInfo(id=v["voice_id"], name=v.get("name", v["voice_id"]), description=v.get("category", ""))
@@ -171,6 +229,8 @@ class ElevenLabsVoice(_ElevenLabsBase):
             # Keep serving the last good list (or the fallback) and retry later.
             log.warning("could not list ElevenLabs voices: %s", exc)
         finally:
+            if claimed:
+                _release_probe()
             with self._voice_lock:
                 self._voices_due = next_due
                 self._voices_refreshing = False
