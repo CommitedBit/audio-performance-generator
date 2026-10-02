@@ -61,6 +61,20 @@ jobs:
           version: "0.11.29"              # same uv as the image
       - run: python3 scripts/check_deps.py
 
+  e2e:
+    # The dev topology end to end -- built images, gateway, placeholder model
+    # service -- driven by the same script that validates the GPU box, which
+    # also keeps that script from rotting between GPU runs.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/smoke_gpu.py --dev --quick
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results
+          path: smoke-results/
+
   compose:
     runs-on: ubuntu-24.04
     steps:
