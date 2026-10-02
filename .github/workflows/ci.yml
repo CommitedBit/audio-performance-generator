@@ -1,0 +1,63 @@
+# Fast checks that run without a GPU or model weights. The GPU path is verified
+# separately on the target VM (scripts/smoke_gpu.sh).
+name: ci
+
+on:
+  pull_request:          # every PR, whatever its base: stacked PRs need CI too
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"          # the version the images run
+      - uses: astral-sh/setup-uv@v6
+      - name: Install
+        run: uv pip install --system -e ".[dev]"
+      - name: Lint
+        run: ruff check app tests
+      - name: Test
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"              # matches frontend/Dockerfile
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  compose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # Bash arrays, not a word-split string: each topology is its own -f list.
+      - name: Validate every topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml config -q
+          docker compose -f compose.gpu.yml config -q
+          docker compose -f compose.gpu.yml -f compose.gpu.split.yml config -q
