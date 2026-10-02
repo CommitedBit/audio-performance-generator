@@ -5,6 +5,7 @@ import abc
 import contextlib
 import enum
 import functools
+import gc
 import io
 import threading
 import time
@@ -280,19 +281,33 @@ class Provider(abc.ABC):
     def unload_if_idle(self, timeout: float) -> bool:
         """Unload only if no generation is using the model and it has sat idle
         past `timeout`. The check and the unload happen under the same lock
-        that in_use() and load() take, so a job cannot start in between."""
-        with self._load_lock:
+        that in_use() and load() take, so a job cannot start in between.
+
+        Never waits for that lock. load() holds it for the whole multi-minute
+        _load(), and a sweep that waited there stalled behind the load -- on
+        the event loop, freezing the API. A held lock means a load or an
+        in_use() transition is under way: busy, not idle, so skip this round.
+        """
+        if not self._load_lock.acquire(blocking=False):
+            return False
+        try:
             if self._active or self._model is None or not self._last_used:
                 return False
             if time.monotonic() - self._last_used <= timeout:
                 return False
             self.unload()
             return True
+        finally:
+            self._load_lock.release()
 
     def unload(self) -> None:
         if self._model is None:
             return
         self._model = None
+        # Collect first: a model caught in a reference cycle is not freed by
+        # dropping this reference, and empty_cache can only return blocks that
+        # nothing references any more.
+        gc.collect()
         try:
             import torch
             if torch.cuda.is_available():

@@ -45,6 +45,9 @@ queue = JobQueue(max_concurrent=settings.max_concurrent_jobs)
 # request returns a job id instead of blocking a proxy connection forever.
 SPEECH_INLINE_WAIT = 180.0
 
+# Floor on the idle sweep's interval. A module constant so tests can shorten it.
+SWEEP_MIN_INTERVAL = 30.0
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -66,9 +69,11 @@ async def _sweep_idle_models() -> None:
     if timeout <= 0:
         return
     while True:
-        await asyncio.sleep(max(30, timeout // 4))
+        await asyncio.sleep(max(SWEEP_MIN_INTERVAL, timeout // 4))
         try:
-            get_registry().sweep_idle(timeout)
+            # Off the event loop: an unload runs gc and empties the CUDA cache,
+            # which can take seconds, and every request would wait on it.
+            await asyncio.to_thread(get_registry().sweep_idle, timeout)
         except Exception:                              # noqa: BLE001
             log.exception("idle sweep failed")
 
