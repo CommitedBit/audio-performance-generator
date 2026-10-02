@@ -338,6 +338,7 @@ class Provider(abc.ABC):
             "capability": self.capability.value,
             "license": self.license,
             "requires_gpu": self.requires_gpu,
+            "remote": self.remote,
             "description": self.description,
             "available": self.available(),
             "unavailable_reason": self.unavailable_reason(),

@@ -12,7 +12,8 @@ from app import gateway
 
 
 def _provider(pid: str, capability: str, available: bool = True, reason: str = "") -> dict:
-    return {"id": pid, "capability": capability, "available": available, "unavailable_reason": reason}
+    return {"id": pid, "capability": capability, "available": available, "unavailable_reason": reason,
+            "remote": pid.startswith("elevenlabs")}
 
 
 class Upstreams:
@@ -24,6 +25,7 @@ class Upstreams:
         self.down: set[str] = set()
         self.posts: list[tuple[str, str, dict, dict]] = []   # (service, path, query, body)
         self.post_reply: tuple[int, dict] = (202, {"id": "abc", "status": "queued", "audio_url": None})
+        self.discoveries = 0
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         service = request.url.host
@@ -31,6 +33,7 @@ class Upstreams:
             raise httpx.ConnectError("connection refused", request=request)
         path = request.url.path
         if request.method == "GET" and path == "/v1/models":
+            self.discoveries += 1
             return httpx.Response(200, json={"providers": self.providers.get(service, [])})
         if request.method == "GET" and path == "/v1/jobs":
             return httpx.Response(200, json={"jobs": list(self.jobs.get(service, {}).values())})
@@ -57,6 +60,10 @@ def ups(monkeypatch):
     monkeypatch.setattr(gateway.httpx, "AsyncClient", lambda *a, **kw: real(*a, transport=transport, **kw))
     monkeypatch.setattr(gateway, "UPSTREAMS", {"models": "http://models:8000", "music": "http://music:8000"})
     monkeypatch.setattr(gateway, "_LAST_OWNER", {})
+    monkeypatch.setattr(gateway, "_REQUIRED_SEEN", {})
+    monkeypatch.setattr(gateway, "_CACHE", None)
+    monkeypatch.setattr(gateway, "MODELS_CACHE_SECONDS", 0.0)     # tests change upstreams between calls
+    monkeypatch.setattr(gateway, "REQUIRED_PROVIDERS", ["chatterbox", "acestep", "stable-audio-3-sfx"])
     fake.providers = {
         "models": [
             _provider("chatterbox", "voice"),
@@ -102,8 +109,115 @@ def test_health_reflects_upstreams(gw, ups):
     body = gw.get("/health").json()
     assert body["status"] == "degraded"
     assert body["upstreams"] == {"models": "up", "music": "down"}
+    # It remembers which service served acestep, so it can say which one is gone.
+    assert body["required"]["acestep"] == {"status": "missing", "reason": "its service music is unreachable"}
     ups.down.add("models")
     assert gw.get("/health").json()["status"] == "down"
+
+
+def test_health_reports_capabilities_across_services(gw, ups):
+    ups.providers["models"][0] = _provider("chatterbox", "voice", False, "load failed")
+    body = gw.get("/health").json()
+    assert body["capabilities"]["voice"] == {"status": "cloud", "available": ["elevenlabs-voice"]}
+    assert body["capabilities"]["music"]["status"] == "ok"
+    assert body["required"]["chatterbox"] == {"status": "unavailable", "reason": "load failed"}
+    assert body["status"] == "degraded"
+
+
+# -- readiness --------------------------------------------------------------------
+
+def test_ready_when_every_required_provider_is_available(gw):
+    r = gw.get("/health/ready")
+    assert (r.status_code, r.json()["ready"], r.json()["problems"]) == (200, True, [])
+
+
+def test_not_ready_when_a_required_model_is_replaced_by_a_fallback(gw, ups):
+    """MusicGen standing in for a broken ACE-Step still serves music -- not ready."""
+    ups.providers["music"] = [_provider("acestep", "music", False, "ImportError: nano-vllm"),
+                              _provider("musicgen", "music")]
+    r = gw.get("/health/ready")
+    assert r.status_code == 503
+    assert r.json()["problems"] == ["acestep unavailable: ImportError: nano-vllm"]
+    assert gw.get("/health").json()["capabilities"]["music"]["status"] == "ok"
+
+
+def test_not_ready_when_a_required_service_is_down(gw, ups):
+    gw.get("/v1/models")
+    ups.down.add("music")
+    r = gw.get("/health/ready")
+    assert r.status_code == 503
+    assert r.json()["problems"] == ["acestep missing: its service music is unreachable"]
+
+
+def test_readiness_without_a_required_list(gw, ups, monkeypatch):
+    monkeypatch.setattr(gateway, "REQUIRED_PROVIDERS", [])
+    assert gw.get("/health/ready").status_code == 200
+    ups.providers["models"] = [p for p in ups.providers["models"] if p["capability"] != "sfx"]
+    ups.providers["models"].append(_provider("stable-audio-3-sfx", "sfx", False, "HF_TOKEN is not set"))
+    r = gw.get("/health/ready")
+    assert (r.status_code, r.json()["problems"]) == (503, ["sfx: no available provider"])
+
+
+def test_readiness_needs_no_api_key(gw, monkeypatch):
+    monkeypatch.setenv("API_KEY", "s3cret")
+    assert gw.get("/health/ready").status_code == 200
+    assert gw.get("/v1/models").status_code == 401
+
+
+def test_required_provider_changes_are_logged_once(gw, ups, caplog):
+    with caplog.at_level("INFO", logger="gateway"):
+        gw.get("/v1/models")
+        ups.providers["music"] = [_provider("acestep", "music", False, "CUDA OOM")]
+        gw.get("/v1/models")
+        gw.get("/v1/models")
+        ups.providers["music"] = [_provider("acestep", "music")]
+        gw.get("/v1/models")
+    messages = [(r.levelname, r.getMessage()) for r in caplog.records if r.name == "gateway"]
+    assert messages == [
+        ("ERROR", "required provider acestep is unavailable: CUDA OOM"),
+        ("INFO", "required provider acestep is available again"),
+    ]
+
+
+def test_required_providers_parsing(monkeypatch):
+    monkeypatch.delenv("REQUIRED_PROVIDERS", raising=False)
+    assert gateway._parse_required() == ["chatterbox", "acestep", "stable-audio-3-sfx"]
+    monkeypatch.setenv("REQUIRED_PROVIDERS", " stub-voice , stub-sfx ")
+    assert gateway._parse_required() == ["stub-voice", "stub-sfx"]
+    for off in ("none", "", "  "):
+        monkeypatch.setenv("REQUIRED_PROVIDERS", off)
+        assert gateway._parse_required() == []
+
+
+# -- discovery cache ----------------------------------------------------------------
+
+def test_discovery_is_cached_briefly(gw, ups, monkeypatch):
+    monkeypatch.setattr(gateway, "MODELS_CACHE_SECONDS", 60.0)
+    for _ in range(5):
+        gw.post("/v1/audio/sfx", json={"prompt": "x"})
+    gw.get("/health")
+    assert ups.discoveries == 2                   # one fan-out to two upstreams
+    monkeypatch.setattr(gateway, "MODELS_CACHE_SECONDS", 0.0)
+    gw.get("/v1/models")
+    assert ups.discoveries == 4
+
+
+# -- cloud is never an automatic default ---------------------------------------------
+
+def test_cloud_is_not_picked_automatically(gw, ups):
+    ups.providers["models"][0] = _provider("chatterbox", "voice", False, "load failed")
+    assert gw.get("/v1/models").json()["defaults"]["voice"] is None
+    r = gw.post("/v1/audio/speech", json={"input": "secret story"})
+    assert r.status_code == 503
+    assert "elevenlabs-voice can serve it if named explicitly" in r.json()["detail"]
+    assert ups.posts == []                        # nothing was sent anywhere
+    assert gw.post("/v1/audio/speech", json={"input": "ok", "provider": "elevenlabs-voice"}).status_code == 202
+
+
+def test_cloud_default_can_be_allowed(gw, ups, monkeypatch):
+    monkeypatch.setattr(gateway.settings, "allow_cloud_default", True)
+    ups.providers["models"][0] = _provider("chatterbox", "voice", False, "load failed")
+    assert gw.get("/v1/models").json()["defaults"]["voice"] == "elevenlabs-voice"
 
 
 # -- generation routing -----------------------------------------------------------
@@ -202,3 +316,42 @@ def test_job_list_aggregates_newest_first(gw, ups):
 def test_upstreams_parsing(monkeypatch):
     monkeypatch.setenv("UPSTREAMS", " a=http://a:8000/ , b:c=http://x, junk, =http://y, d= ")
     assert gateway._parse_upstreams() == {"a": "http://a:8000"}
+
+
+# -- the real model service behind the real gateway -----------------------------------
+
+@pytest.fixture
+def stack(monkeypatch):
+    """Gateway -> app.main over ASGI, sharing one data dir: the dev topology in-process."""
+    from app import main
+    from app.jobs import JobQueue
+
+    monkeypatch.setattr(main, "queue", JobQueue())
+    real = httpx.AsyncClient
+    transport = httpx.ASGITransport(app=main.app)
+    monkeypatch.setattr(gateway.httpx, "AsyncClient", lambda *a, **kw: real(*a, transport=transport, **kw))
+    monkeypatch.setattr(gateway, "UPSTREAMS", {"stub": "http://stub:8000"})
+    monkeypatch.setattr(gateway, "_LAST_OWNER", {})
+    monkeypatch.setattr(gateway, "_REQUIRED_SEEN", {})
+    monkeypatch.setattr(gateway, "_CACHE", None)
+    monkeypatch.setattr(gateway, "MODELS_CACHE_SECONDS", 0.0)
+    monkeypatch.setattr(gateway, "REQUIRED_PROVIDERS", ["stub-voice", "stub-music", "stub-sfx"])
+    with TestClient(gateway.app) as client:
+        yield client
+
+
+def test_dev_stack_end_to_end(stack):
+    health = stack.get("/health").json()
+    assert health["status"] == "stub"
+    assert health["capabilities"]["voice"]["status"] == "stub"
+    assert stack.get("/health/ready").status_code == 200
+
+    models = stack.get("/v1/models").json()
+    assert all("remote" in p for p in models["providers"])
+    assert models["defaults"]["voice"] == "stub-voice"
+    assert next(p for p in models["providers"] if p["id"] == "elevenlabs-voice")["remote"] is True
+
+    job = stack.post("/v1/audio/speech", json={"input": "End to end."}).json()
+    assert job["id"].startswith("stub:") and job["status"] == "done"
+    assert stack.get(job["audio_url"]).content[:4] == b"RIFF"
+    assert stack.get(f"/v1/jobs/{job['id']}").json()["audio_id"] == job["audio_id"]

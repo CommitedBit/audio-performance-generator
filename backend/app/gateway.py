@@ -23,17 +23,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
+from . import health as health_status
 from . import storage
 from .auth import api_key_middleware
 from .config import get_settings
 from .registry import preference_rank
-from .schemas import GenerateBody, SpeechBody
+from .schemas import GenerateBody, HealthResponse, SpeechBody
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
@@ -54,8 +56,29 @@ def _parse_upstreams() -> dict[str, str]:
     return out
 
 
+def _parse_required() -> list[str]:
+    raw = os.getenv("REQUIRED_PROVIDERS", DEFAULT_REQUIRED)
+    if raw.strip().lower() in {"", "none"}:
+        return []
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+# The local models a working install must have. /health/ready answers 503 until
+# every one is available -- the check a capability-level "something can serve
+# voice" misses: MusicGen standing in for a broken ACE-Step, or Stable Audio's
+# music checkpoint hiding a dead `music` service.
+DEFAULT_REQUIRED = "chatterbox,acestep,stable-audio-3-sfx"
+
 UPSTREAMS = _parse_upstreams()
+REQUIRED_PROVIDERS = _parse_required()
 DISCOVERY_TIMEOUT = float(os.getenv("DISCOVERY_TIMEOUT", "10"))
+# Kept under the container healthcheck's 10 s timeout, so one slow upstream
+# cannot make the gateway itself look dead.
+HEALTH_DISCOVERY_TIMEOUT = min(DISCOVERY_TIMEOUT, 5.0)
+# Discovery is cached this long. Every generate request resolves its provider
+# through discovery, so without it a burst of requests fanned out to every
+# upstream once per request.
+MODELS_CACHE_SECONDS = float(os.getenv("MODELS_CACHE_SECONDS", "3"))
 # Generous: a TTS request waits inline, and the first one may load weights.
 FORWARD_TIMEOUT = float(os.getenv("FORWARD_TIMEOUT", "600"))
 
@@ -73,9 +96,9 @@ app.add_middleware(
 )
 
 
-async def _get_json(client: httpx.AsyncClient, key: str, path: str) -> dict | None:
+async def _get_json(client: httpx.AsyncClient, key: str, path: str, timeout: float | None = None) -> dict | None:
     try:
-        r = await client.get(f"{UPSTREAMS[key]}{path}", timeout=DISCOVERY_TIMEOUT)
+        r = await client.get(f"{UPSTREAMS[key]}{path}", timeout=timeout or DISCOVERY_TIMEOUT)
         r.raise_for_status()
         return r.json()
     except Exception as exc:                       # noqa: BLE001
@@ -91,15 +114,32 @@ _LAST_OWNER: dict[str, str] = {}
 RETRY_AFTER_SECONDS = "5"
 
 
-async def _gather_models() -> tuple[list[dict], dict[str, str], list[str]]:
-    """Fan out to every upstream and merge. Returns (providers, owner_map, down)."""
+_CACHE: tuple[float, tuple[list[dict], dict[str, str], list[str]]] | None = None
+# Last reported state of each required provider, so changes are logged once.
+_REQUIRED_SEEN: dict[str, str] = {}
+
+
+async def _gather_models(*, timeout: float | None = None) -> tuple[list[dict], dict[str, str], list[str]]:
+    """Merged discovery, cached for MODELS_CACHE_SECONDS. Returns
+    (providers, owner_map, down). Callers must not mutate the result."""
+    global _CACHE
+    if _CACHE is not None and time.monotonic() - _CACHE[0] < MODELS_CACHE_SECONDS:
+        return _CACHE[1]
+    result = await _discover(timeout)
+    _CACHE = (time.monotonic(), result)
+    _note_required(result[0], result[2])
+    return result
+
+
+async def _discover(timeout: float | None) -> tuple[list[dict], dict[str, str], list[str]]:
+    """Fan out to every upstream and merge."""
     providers: list[dict] = []
     owner: dict[str, str] = {}
     down: list[str] = []
 
     async with httpx.AsyncClient() as client:
         results = await asyncio.gather(
-            *(_get_json(client, k, "/v1/models") for k in UPSTREAMS),
+            *(_get_json(client, k, "/v1/models", timeout) for k in UPSTREAMS),
             return_exceptions=False,
         )
 
@@ -119,28 +159,96 @@ async def _gather_models() -> tuple[list[dict], dict[str, str], list[str]]:
     return providers, owner, down
 
 
+def _required_status(providers: list[dict], down: list[str]) -> dict[str, dict]:
+    by_id = {p["id"]: p for p in providers}
+    out: dict[str, dict] = {}
+    for pid in REQUIRED_PROVIDERS:
+        p = by_id.get(pid)
+        if p is None:
+            last = _LAST_OWNER.get(pid)
+            reason = f"its service {last} is unreachable" if last in down else (
+                f"not served by any reachable service ({', '.join(down)} down)" if down
+                else "no upstream serves it; check PROVIDERS and UPSTREAMS")
+            out[pid] = {"status": "missing", "reason": reason}
+        elif not p["available"]:
+            out[pid] = {"status": "unavailable", "reason": p.get("unavailable_reason", "")}
+        else:
+            out[pid] = {"status": "ok", "reason": ""}
+    return out
+
+
+def _note_required(providers: list[dict], down: list[str]) -> None:
+    """Log each required provider when it goes bad and when it recovers.
+
+    Logged here rather than by each model service, which only sees its own
+    providers and would report a split service's absent capabilities as
+    failures.
+    """
+    for pid, state in _required_status(providers, down).items():
+        previous = _REQUIRED_SEEN.get(pid)
+        if state["status"] == previous:
+            continue
+        _REQUIRED_SEEN[pid] = state["status"]
+        if state["status"] == "ok":
+            if previous is not None:
+                log.info("required provider %s is available again", pid)
+        else:
+            log.error("required provider %s is %s: %s", pid, state["status"], state["reason"])
+
+
 def _defaults(providers: list[dict]) -> dict[str, str | None]:
+    # Same rule as each model service: a cloud provider is never picked
+    # automatically unless ALLOW_CLOUD_DEFAULT is set.
+    allow_cloud = settings.allow_cloud_default
     out: dict[str, str | None] = {}
     for cap in ("voice", "music", "sfx"):
-        usable = [p for p in providers if p["capability"] == cap and p["available"]]
+        usable = [p for p in providers if p["capability"] == cap and p["available"]
+                  and (allow_cloud or not p.get("remote"))]
         # Ranked the same way as each model service, not by upstream order.
         usable.sort(key=lambda p: preference_rank(p["id"]))
         out[cap] = usable[0]["id"] if usable else None
     return out
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health():
-    providers, _, down = await _gather_models()
-    available = sum(1 for p in providers if p["available"])
+    """Liveness and detail; always 200. Point container healthchecks here,
+    never at /health/ready -- a missing model must not restart the stack."""
+    providers, _, down = await _gather_models(timeout=HEALTH_DISCOVERY_TIMEOUT)
+    overall, capabilities = health_status.summarize(providers)
+    required = _required_status(providers, down)
+    if overall in {"ok", "stub"} and (down or any(r["status"] != "ok" for r in required.values())):
+        overall = "degraded"
     return {
-        "status": "ok" if available and not down else ("degraded" if available else "down"),
+        "status": overall,
         "device": "gateway",
-        "providers_available": available,
+        "providers_available": sum(1 for p in providers if p["available"]),
         "providers_total": len(providers),
+        "capabilities": capabilities,
         "gpu": None,
         "upstreams": {k: ("down" if k in down else "up") for k in UPSTREAMS},
+        "required": required,
     }
+
+
+@app.get("/health/ready")
+async def ready():
+    """Readiness: 200 only when every REQUIRED_PROVIDERS entry can generate.
+
+    With REQUIRED_PROVIDERS=none, ready means every capability present has at
+    least one available provider. For scripts and monitoring; see /health.
+    """
+    providers, _, down = await _gather_models(timeout=HEALTH_DISCOVERY_TIMEOUT)
+    required = _required_status(providers, down)
+    if REQUIRED_PROVIDERS:
+        problems = [f"{pid} {r['status']}: {r['reason']}" for pid, r in required.items() if r["status"] != "ok"]
+    else:
+        _, capabilities = health_status.summarize(providers)
+        problems = [f"{cap}: no available provider" for cap, s in capabilities.items() if s["status"] == "down"]
+        if not capabilities:
+            problems = ["no upstream reported any provider"]
+    body = {"ready": not problems, "problems": problems, "required": required, "upstreams_down": down}
+    return JSONResponse(body, status_code=200 if not problems else 503)
 
 
 @app.get("/v1/models")
@@ -184,6 +292,12 @@ async def _resolve_service(capability: str, provider_id: str | None) -> tuple[st
 
     chosen = _defaults(providers).get(capability)
     if not chosen:
+        cloud = [p["id"] for p in providers
+                 if p["capability"] == capability and p["available"] and p.get("remote")]
+        if cloud:
+            raise HTTPException(
+                503, f"no local provider for {capability} is available; {', '.join(cloud)} can serve it "
+                     "if named explicitly (or set ALLOW_CLOUD_DEFAULT=1)")
         raise HTTPException(503, f"no available provider for {capability}")
     return owner[chosen], chosen
 

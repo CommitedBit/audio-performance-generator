@@ -64,9 +64,11 @@ def _build() -> list[Provider]:
     try_add(ElevenLabsVoice, "elevenlabs-voice")
     try_add(ElevenLabsSfx, "elevenlabs-sfx")
 
-    # Stubs last so a real provider always wins the default slot, but always
-    # present so the API is usable before any weights exist.
-    if get_settings().dev_stub or not any(p.available() for p in providers):
+    # Placeholders only on request, and last so a real provider always wins the
+    # default slot. They used to be added whenever no real provider was
+    # available, so a GPU box whose models had all failed served test tones and
+    # reported healthy.
+    if get_settings().dev_stub:
         providers.extend([StubVoice(), StubMusic(), StubSfx()])
 
     return providers
@@ -99,8 +101,12 @@ class Registry:
         return [p for p in self._providers.values() if p.capability is capability]
 
     def default_for(self, capability: Capability) -> Provider | None:
-        """Prefer an available local provider; fall back to any available one."""
-        candidates = [p for p in self.for_capability(capability) if p.available()]
+        """The best available provider, by PREFERENCE. Cloud providers only
+        when ALLOW_CLOUD_DEFAULT is set; otherwise they must be named."""
+        allow_cloud = get_settings().allow_cloud_default
+        candidates = [
+            p for p in self.for_capability(capability) if p.available() and (allow_cloud or not p.remote)
+        ]
         if not candidates:
             return None
         # sorted() is stable, so ties keep registration order.
@@ -119,6 +125,11 @@ class Registry:
 
         p = self.default_for(capability)
         if p is None:
+            cloud = [c.id for c in self.for_capability(capability) if c.remote and c.available()]
+            if cloud:
+                raise RuntimeError(
+                    f"no local provider for {capability.value} is available; {', '.join(cloud)} can serve "
+                    "it if named explicitly (or set ALLOW_CLOUD_DEFAULT=1)")
             raise RuntimeError(f"no available provider for {capability.value}")
         return p
 

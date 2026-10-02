@@ -33,6 +33,8 @@ export interface ProviderInfo {
   capability: Capability;
   license: string;
   requires_gpu: boolean;
+  /** Runs on a third-party service (ElevenLabs): text leaves the machine. */
+  remote: boolean;
   description: string;
   available: boolean;
   unavailable_reason: string;
@@ -290,12 +292,20 @@ export function deleteVoiceReference(id: string): Promise<{ deleted: string }> {
   return request<{ deleted: string }>(`/v1/voices/${id}`, { method: 'DELETE' });
 }
 
+/** ok: a local model can serve it · cloud: only a cloud provider · stub: placeholder only · down: nothing. */
+export type CapabilityStatus = 'ok' | 'cloud' | 'stub' | 'down';
+
 export interface HealthInfo {
-  status: 'ok' | 'loading' | 'degraded';
+  status: 'ok' | 'stub' | 'degraded' | 'down';
   device: string;
   providers_available: number;
   providers_total: number;
+  capabilities: Partial<Record<Capability, { status: CapabilityStatus; available: string[] }>>;
   gpu: { name: string; vram_total_gb: number; vram_free_gb: number } | null;
+  /** Gateway only. */
+  upstreams?: Record<string, 'up' | 'down'> | null;
+  /** Gateway only: the models REQUIRED_PROVIDERS says a working install needs. */
+  required?: Record<string, { status: 'ok' | 'unavailable' | 'missing'; reason: string }> | null;
 }
 
 export function fetchHealth(signal?: AbortSignal): Promise<HealthInfo> {

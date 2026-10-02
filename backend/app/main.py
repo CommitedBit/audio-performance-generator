@@ -22,6 +22,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
+from . import health as health_status
 from . import storage
 from .auth import api_key_middleware
 from .config import get_settings
@@ -30,7 +31,7 @@ from .jobs import Job, JobQueue, JobStatus
 from .providers.base import Capability, GenerateRequest, check_audio_sane, wav_duration
 from .registry import get_registry
 from .rng import rng_scope
-from .schemas import GenerateBody, SpeechBody
+from .schemas import GenerateBody, HealthResponse, SpeechBody
 
 settings = get_settings()
 logging.basicConfig(
@@ -54,6 +55,7 @@ async def lifespan(app: FastAPI):
     reg = get_registry()
     log.info("device=%s providers=%d available=%d",
              settings.device, len(reg.all()), sum(p.available() for p in reg.all()))
+    health_status.log_problems([health_status.summary(p) for p in reg.all()], log)
     sweeper = asyncio.create_task(_sweep_idle_models())
     try:
         yield
@@ -108,16 +110,16 @@ def _gpu_info() -> dict | None:
         return None
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 def health():
-    reg = get_registry()
-    providers = reg.all()
-    available = sum(p.available() for p in providers)
+    summaries = [health_status.summary(p) for p in get_registry().all()]
+    overall, capabilities = health_status.summarize(summaries)
     return {
-        "status": "ok" if available else "degraded",
+        "status": overall,
         "device": settings.device,
-        "providers_available": available,
-        "providers_total": len(providers),
+        "providers_available": sum(p["available"] for p in summaries),
+        "providers_total": len(summaries),
+        "capabilities": capabilities,
         "gpu": _gpu_info(),
         "jobs": queue.stats(),
     }

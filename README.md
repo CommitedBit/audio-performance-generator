@@ -185,6 +185,20 @@ device. Every generated clip is checked for an RMS floor and for being a
 constant signal, and the job **fails** rather than storing silence and
 reporting success.
 
+The same rule applies to the stack as a whole:
+
+- **No placeholder tones in production.** The tone generators exist only with
+  `DEV_STUB=1`. They used to be added automatically whenever no real model was
+  available, which meant a box whose models had all failed served test tones
+  and reported healthy.
+- **No silent cloud fallback.** ElevenLabs is never the automatic default unless
+  `ALLOW_CLOUD_DEFAULT=1`. A Chatterbox that failed to load would otherwise send
+  your script to a paid API.
+- **Health is reported per capability**, and only a local model counts as `ok`.
+  `/health/ready` checks named models (`REQUIRED_PROVIDERS`), because a
+  capability can look fine while running on a fallback, such as MusicGen
+  standing in for a broken ACE-Step.
+
 ## Configuration
 
 See [.env.example](.env.example).
@@ -201,13 +215,19 @@ See [.env.example](.env.example).
 | `SA3_MODEL` | — | Blank = small checkpoints |
 | `ACESTEP_BACKEND` | `pt` | `pt` avoids nano-vllm, broken on sm_120 |
 | `HF_TOKEN` | — | Required for gated repos (Stable Audio 3) |
+| `REQUIRED_PROVIDERS` | `chatterbox,acestep,stable-audio-3-sfx` | What `/health/ready` waits for; `none` = any provider per capability |
+| `ALLOW_CLOUD_DEFAULT` | `0` | `1` lets ElevenLabs stand in automatically for a failed local model |
+| `PROVIDER_RETRY_SECONDS` | `300` | How long a failed model load is reported before the next retry |
+| `MODELS_CACHE_SECONDS` | `3` | Gateway caches discovery this long |
+| `DEV_STUB` | `0` | `1` adds placeholder tone generators (dev only) |
 | `VITE_API_TARGET` | `http://localhost:8000` | Where the Mac dev server proxies `/api` |
 
 ## API
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/health` | Per-upstream up/down; no API key required |
+| `GET` | `/health` | Liveness, always `200`: per-capability `ok`/`cloud`/`stub`/`down`, upstreams, required providers. No API key |
+| `GET` | `/health/ready` | `200` only when every `REQUIRED_PROVIDERS` entry can generate, else `503` with the reasons. No API key. Never use it as a container healthcheck |
 | `GET` | `/v1/models` | Providers, licences, voices, params, defaults |
 | `POST` | `/v1/audio/speech` | TTS; waits inline, returns the finished clip |
 | `POST` | `/v1/audio/music` | Enqueues; returns `202` and a job id |

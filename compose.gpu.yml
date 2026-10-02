@@ -58,6 +58,12 @@ services:
     command: ["python", "-m", "uvicorn", "app.gateway:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       UPSTREAMS: models=http://models:8000
+      # /health/ready returns 503 until each of these can generate. Matches
+      # the default model set; change it when you change models.
+      REQUIRED_PROVIDERS: ${REQUIRED_PROVIDERS:-chatterbox,acestep,stable-audio-3-sfx}
+      # 0: ElevenLabs is used only when chosen explicitly, never as a silent
+      # stand-in for a local model that failed.
+      ALLOW_CLOUD_DEFAULT: ${ALLOW_CLOUD_DEFAULT:-0}
       DATA_DIR: /data
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
       FORWARD_TIMEOUT: ${FORWARD_TIMEOUT:-900}
@@ -105,6 +111,7 @@ services:
       # The ElevenLabs providers run here, not in the gateway. Blank means the
       # cloud fallback is simply not advertised.
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ALLOW_CLOUD_DEFAULT: ${ALLOW_CLOUD_DEFAULT:-0}
       # Leave at 1 unless you have measured the VRAM headroom for two models
       # generating at once. Jobs that share one Stable Audio 3 pipeline are
       # serialised on it automatically either way.

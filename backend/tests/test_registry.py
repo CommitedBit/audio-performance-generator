@@ -23,13 +23,35 @@ def test_default_follows_preference_not_registration_order(use_providers):
     assert reg.default_for(Capability.MUSIC).id == "acestep"
 
 
-def test_default_skips_unavailable(use_providers):
+def test_cloud_is_never_an_automatic_default(use_providers):
+    """A local model failing must not silently route story text to a paid API."""
+    reg = use_providers(
+        FakeProvider("chatterbox", Capability.VOICE, is_available=False),
+        FakeProvider("elevenlabs-voice", Capability.VOICE, remote=True),
+    )
+    assert reg.default_for(Capability.VOICE) is None
+    with pytest.raises(RuntimeError, match="elevenlabs-voice can serve it if named explicitly"):
+        reg.resolve(Capability.VOICE, None)
+    assert reg.resolve(Capability.VOICE, "elevenlabs-voice").id == "elevenlabs-voice"
+    assert reg.default_for(Capability.SFX) is None
+
+
+def test_cloud_default_can_be_allowed(monkeypatch, use_providers):
+    reload_settings(monkeypatch, ALLOW_CLOUD_DEFAULT="1")
     reg = use_providers(
         FakeProvider("chatterbox", Capability.VOICE, is_available=False),
         FakeProvider("elevenlabs-voice", Capability.VOICE, remote=True),
     )
     assert reg.default_for(Capability.VOICE).id == "elevenlabs-voice"
-    assert reg.default_for(Capability.SFX) is None
+
+
+def test_local_still_beats_cloud_when_cloud_defaults_are_allowed(monkeypatch, use_providers):
+    reload_settings(monkeypatch, ALLOW_CLOUD_DEFAULT="1")
+    reg = use_providers(
+        FakeProvider("elevenlabs-voice", Capability.VOICE, remote=True),
+        FakeProvider("chatterbox", Capability.VOICE),
+    )
+    assert reg.default_for(Capability.VOICE).id == "chatterbox"
 
 
 def test_resolve_errors(use_providers):
@@ -56,6 +78,14 @@ def test_providers_allowlist(monkeypatch, use_providers):
         FakeProvider("musicgen", Capability.MUSIC),
     )
     assert sorted(p.id for p in reg.all()) == ["acestep", "chatterbox"]
+
+
+def test_no_placeholders_without_dev_stub_even_when_nothing_is_available(monkeypatch):
+    """The old fallback served test tones on a box whose real models all failed."""
+    reload_settings(monkeypatch, DEV_STUB="0")
+    reg = registry.get_registry()
+    assert not any(p.available() for p in reg.all())     # no model deps on the test host
+    assert not any(p.id.startswith("stub") for p in reg.all())
 
 
 def test_dev_stub_adds_placeholders_after_real_providers(monkeypatch):

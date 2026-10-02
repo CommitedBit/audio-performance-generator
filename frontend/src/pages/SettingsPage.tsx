@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  type CapabilityStatus,
   type HealthInfo,
   type VoiceReference,
   deleteVoiceReference,
@@ -10,6 +11,13 @@ import {
   uploadVoiceReference,
 } from '../api/client';
 import { useModels } from '../hooks/useModels';
+
+const CAPABILITY_LABEL: Record<CapabilityStatus, string> = {
+  ok: 'local model ready',
+  cloud: 'cloud only',
+  stub: 'placeholder only',
+  down: 'unavailable',
+};
 
 /**
  * Server access, status, and voice-clone reference management.
@@ -122,6 +130,30 @@ export default function SettingsPage() {
             </>
           )}
         </p>
+      )}
+
+      {health && (
+        <ul className="health small">
+          {Object.entries(health.capabilities ?? {}).map(([cap, s]) => (
+            <li key={cap} className={s.status === 'ok' ? '' : 'warn'}>
+              {cap}: {CAPABILITY_LABEL[s.status]}
+            </li>
+          ))}
+          {Object.entries(health.required ?? {})
+            .filter(([, r]) => r.status !== 'ok')
+            .map(([id, r]) => (
+              <li key={id} className="warn">
+                required model {id} is {r.status}: {r.reason}
+              </li>
+            ))}
+          {Object.entries(health.upstreams ?? {})
+            .filter(([, state]) => state === 'down')
+            .map(([name]) => (
+              <li key={name} className="warn">
+                service {name} is unreachable
+              </li>
+            ))}
+        </ul>
       )}
 
       {models && (
