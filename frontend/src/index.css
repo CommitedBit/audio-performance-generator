@@ -140,6 +140,21 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .clip:active { cursor: grabbing; }
 
+/* Inset past the 6px trim handles; the full prompt is in the clip's title. */
+.clip-label {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 4px;
+  font-size: 11px;
+  color: #0d1017;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+
 .providers { width: 100%; border-collapse: collapse; font-size: 14px; }
 .providers th, .providers td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .providers th { color: var(--muted); font-weight: 500; }

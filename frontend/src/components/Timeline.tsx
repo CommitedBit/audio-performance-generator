@@ -1,8 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ApiError } from '../api/client';
 import useProjectStore, { orderedClips } from '../store/useProjectStore';
-import type { TrackType } from '../types/timeline';
-import { getBlob } from '../hooks/useIndexedAudio';
-import { AudioEngine } from '../engine/AudioEngine';
+import type { Clip, TrackType } from '../types/timeline';
+import { loadClipAudio } from '../hooks/useIndexedAudio';
+import { AudioEngine, runPlayback } from '../engine/AudioEngine';
+import { type TrimSide, trimClip } from '../lib/trim';
 
 const PIXELS_PER_SEC = 100;
 
@@ -12,6 +14,10 @@ const colors: Record<TrackType, string> = {
   music: '#10b981', // emerald-500
 };
 
+// One engine, and so one AudioContext, for the page. Made per Timeline mount,
+// each visit to the editor opened another context and none was ever closed.
+const engine = new AudioEngine(loadClipAudio);
+
 export default function Timeline() {
   const project = useProjectStore(s => s.project);
   const rawClips = useProjectStore(s => s.project.clips);
@@ -19,16 +25,19 @@ export default function Timeline() {
   const updateClip = useProjectStore(s => s.updateClip);
   const playing = useProjectStore(s => s.playing);
   const setPlaying = useProjectStore(s => s.setPlaying);
+  const [error, setError] = useState<string | null>(null);
 
-  const engineRef = useRef<AudioEngine | null>(null);
-  if (!engineRef.current) engineRef.current = new AudioEngine(getBlob);
+  // The engine outlives this component; leaving the editor stops what it plays.
+  useEffect(() => () => engine.stop(), []);
 
-  const play = async () => {
+  const play = () => {
     if (playing) return;
-    setPlaying(true);
-    await engineRef.current!.play(clips);
-    const last = clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0);
-    setTimeout(() => setPlaying(false), last * 1000);
+    setError(null);
+    // Nothing is awaited before engine.play, so it runs inside this click
+    // and can resume the AudioContext.
+    runPlayback(() => engine.play(clips), setPlaying).catch((err: unknown) => {
+      setError(err instanceof ApiError ? `${err.message} (HTTP ${err.status})` : String(err));
+    });
   };
 
   const handleMove = (
@@ -59,38 +68,22 @@ export default function Timeline() {
     document.addEventListener('pointerup', up);
   };
 
-  const handleTrim = (
-    e: React.PointerEvent<HTMLDivElement>,
-    clipId: string,
-    side: 'left' | 'right',
-    origWidth: number,
-    origOffset: number
-  ) => {
+  const handleTrim = (e: React.PointerEvent<HTMLDivElement>, clip: Clip, side: TrimSide) => {
     e.stopPropagation();
     e.preventDefault();
     const startX = e.clientX;
-    let newWidth = origWidth;
-    let newOffset = origOffset;
+    const el = e.currentTarget.parentElement as HTMLElement;
+    let patch: ReturnType<typeof trimClip> | null = null;
     const move = (ev: PointerEvent) => {
-      const deltaPx = ev.clientX - startX;
-      if (side === 'left') {
-        const deltaSec = Math.max(0, deltaPx / PIXELS_PER_SEC);
-        newWidth = Math.max(0.1, origWidth - deltaSec);
-        newOffset = origOffset + (origWidth - newWidth);
-      } else {
-        const deltaSec = Math.min(0, deltaPx / PIXELS_PER_SEC);
-        newWidth = Math.max(0.1, origWidth + deltaSec);
-      }
-      const el = (e.target as HTMLElement).parentElement as HTMLElement;
-      el.style.width = `${newWidth * PIXELS_PER_SEC}px`;
+      patch = trimClip(clip, side, (ev.clientX - startX) / PIXELS_PER_SEC);
+      // A left trim moves the clip's left edge, not just its width.
+      el.style.left = `${patch.start * PIXELS_PER_SEC}px`;
+      el.style.width = `${patch.duration * PIXELS_PER_SEC}px`;
     };
     const up = () => {
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
-      const patch = side === 'left'
-        ? { offset: newOffset, duration: newWidth }
-        : { duration: newWidth };
-      updateClip(clipId, patch);
+      if (patch) updateClip(clip.id, patch);
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
@@ -100,10 +93,12 @@ export default function Timeline() {
     <div className="panel">
       <div className="row">
         <button onClick={play} disabled={playing || clips.length === 0}>Play</button>
+        <button onClick={() => engine.stop()} disabled={!playing}>Stop</button>
         <span className="muted small">
           {clips.length} clip{clips.length === 1 ? '' : 's'}
         </span>
       </div>
+      {error && <p className="error">{error}</p>}
       <div className="timeline">
         {project.tracks.map(track => (
           <div key={track.id} className="track">
@@ -115,6 +110,7 @@ export default function Timeline() {
                 <div
                   key={c.id}
                   className="clip"
+                  title={c.label}
                   style={{
                     position: 'absolute',
                     left,
@@ -125,6 +121,7 @@ export default function Timeline() {
                   }}
                   onPointerDown={e => handleMove(e, c.id, left)}
                 >
+                  {c.label && <span className="clip-label">{c.label}</span>}
                   <div
                     className="left-handle"
                     style={{
@@ -136,7 +133,7 @@ export default function Timeline() {
                       cursor: 'ew-resize',
                       background: '#fff',
                     }}
-                    onPointerDown={e => handleTrim(e, c.id, 'left', c.duration, c.offset)}
+                    onPointerDown={e => handleTrim(e, c, 'left')}
                   />
                   <div
                     className="right-handle"
@@ -149,7 +146,7 @@ export default function Timeline() {
                       cursor: 'ew-resize',
                       background: '#fff',
                     }}
-                    onPointerDown={e => handleTrim(e, c.id, 'right', c.duration, c.offset)}
+                    onPointerDown={e => handleTrim(e, c, 'right')}
                   />
                 </div>
               );

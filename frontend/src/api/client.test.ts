@@ -5,6 +5,7 @@ import {
   type JobStatus,
   cancelJob,
   fetchAudio,
+  fetchAudioById,
   fetchModels,
   generate,
   generateAudio,
@@ -150,8 +151,10 @@ describe('X-API-Key', () => {
     await getJob('music:j1');
     await cancelJob('music:j1');
     await fetchAudio(job('done', { audio_url: '/v1/audio/abc' }));
+    await fetchAudioById('abc');
 
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
+    expect(calls[5].url).toBe('/api/v1/audio/abc');
     for (const c of calls) expect(c.headers.get('X-API-Key')).toBe('s3cret');
     // Adding the key must not drop the headers the request already had.
     expect(calls[1].headers.get('Content-Type')).toBe('application/json');

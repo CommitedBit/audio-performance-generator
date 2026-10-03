@@ -125,7 +125,8 @@ export default function GenerationPanel() {
         ac.signal,
         setJob
       );
-      const blobId = await saveBlob(blob);
+      // Best effort when the server kept the audio: see saveBlob.
+      const blobId = await saveBlob(blob, finished.audio_id);
 
       // Trust the server's measured duration; fall back to decoding only if it
       // is missing, since decoding costs a full pass over the audio.
@@ -140,7 +141,9 @@ export default function GenerationPanel() {
         }
       }
 
-      addClip(trackId, blobId, duration);
+      // audio_id is what the clip's audio is fetched back by once the browser
+      // has dropped its cached copy.
+      addClip(trackId, blobId, duration, { audioId: finished.audio_id ?? undefined, label: prompt });
       setText('');
       setJob(null);
     } catch (err: unknown) {

@@ -2,11 +2,14 @@ import { create } from 'zustand';
 import { newId } from '../lib/id';
 import type { Project, Clip, TrackType } from '../types/timeline';
 
+/** What a new clip knows of where its audio came from. */
+export type ClipSource = Pick<Clip, 'audioId' | 'label'>;
+
 export interface ProjectState {
   project: Project;
   selectedClipId?: string;
   playing: boolean;
-  addClip: (trackId: string, blobId: string, duration: number) => void;
+  addClip: (trackId: string, blobId: string, duration: number, source?: ClipSource) => void;
   moveClip: (clipId: string, start: number) => void;
   /** update an existing clip with a partial set of fields */
   updateClip: (id: string, partial: Partial<Clip>) => void;
@@ -28,7 +31,7 @@ const useProjectStore = create<ProjectState>(set => ({
   },
   selectedClipId: undefined,
   playing: false,
-  addClip: (trackId, blobId, duration) =>
+  addClip: (trackId, blobId, duration, source = {}) =>
     set(state => {
       const clipsForTrack = state.project.clips.filter(c => c.trackId === trackId);
       const start = clipsForTrack.reduce((acc, c) => Math.max(acc, c.start + c.duration), 0);
@@ -36,9 +39,17 @@ const useProjectStore = create<ProjectState>(set => ({
         id: newId(),
         trackId,
         blobId,
+        audioId: source.audioId,
+        label: source.label,
         start,
         offset: 0,
         duration,
+        // A new clip is the whole of its source. Recorded so a trim can be
+        // undone by dragging the handle back out, as far as this and no further.
+        sourceDuration: duration,
+        gain: 1,
+        fadeIn: 0,
+        fadeOut: 0,
       };
       return {
         project: { ...state.project, clips: [...state.project.clips, clip] },

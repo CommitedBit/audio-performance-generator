@@ -312,9 +312,9 @@ Vite proxies `/api` there, matching what nginx does in the container, so
 
 No GPU, torch or weights needed: providers are faked, the gateway talks to fake
 upstreams, and the GPU-slot tests use real subprocesses. The frontend tests
-(vitest) stub `fetch`, so they need no server either. CI
-(`.github/workflows/ci.yml`) runs these plus the frontend build and a
-`docker compose config` of every topology, on every pull request.
+(vitest) stub `fetch` and fake Web Audio, so they need neither a server nor a
+browser. CI (`.github/workflows/ci.yml`) runs these plus the frontend build and
+a `docker compose config` of every topology, on every pull request.
 
 ## Adding a model
 
