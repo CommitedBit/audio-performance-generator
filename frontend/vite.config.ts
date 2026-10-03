@@ -12,9 +12,9 @@ export default defineConfig({
         target: process.env.VITE_API_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api/, ''),
-        // Music generation runs for minutes.
-        timeout: 600_000,
-        proxyTimeout: 600_000,
+        // Longer than the gateway's FORWARD_TIMEOUT (600 s), matching nginx.
+        timeout: 660_000,
+        proxyTimeout: 660_000,
       },
     },
   },

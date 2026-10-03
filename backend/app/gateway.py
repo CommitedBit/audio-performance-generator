@@ -79,7 +79,10 @@ HEALTH_DISCOVERY_TIMEOUT = min(DISCOVERY_TIMEOUT, 5.0)
 # through discovery, so without it a burst of requests fanned out to every
 # upstream once per request.
 MODELS_CACHE_SECONDS = float(os.getenv("MODELS_CACHE_SECONDS", "3"))
-# Generous: a TTS request waits inline, and the first one may load weights.
+# The longest forwarded request is speech waiting inline (at most 180 s, then
+# it returns a job); music and sfx return a job at once. nginx and the Vite
+# proxy wait slightly LONGER than this, so the client sees this gateway's 504
+# naming the slow service rather than a bare proxy timeout.
 FORWARD_TIMEOUT = float(os.getenv("FORWARD_TIMEOUT", "600"))
 
 app = FastAPI(
