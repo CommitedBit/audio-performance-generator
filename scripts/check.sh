@@ -41,18 +41,34 @@ run "backend ruff"    bash -c "cd backend && '$PY' -m ruff check app tests && '$
 run "frontend lint"   npm --prefix frontend run lint --silent
 run "frontend build"  npm --prefix frontend run build --silent
 run "frontend tests"  npm --prefix frontend test --silent
-run "compose: dev"    docker compose -f docker-compose.yml config -q
-run "compose: gpu"    docker compose -f compose.gpu.yml config -q
-run "compose: split"  docker compose -f compose.gpu.yml -f compose.gpu.split.yml config -q
+# Sandboxes (Codex's among them) often have no Docker. Skip, say so, and let
+# CI's compose and e2e jobs cover it -- a missing tool is not a failing check.
+HAVE_DOCKER=0
+command -v docker >/dev/null 2>&1 && HAVE_DOCKER=1
+if [ "$HAVE_DOCKER" = 1 ]; then
+  run "compose: dev"    docker compose -f docker-compose.yml config -q
+  run "compose: gpu"    docker compose -f compose.gpu.yml config -q
+  run "compose: split"  docker compose -f compose.gpu.yml -f compose.gpu.split.yml config -q
+else
+  printf '\nskip  compose config: docker is not installed here (CI runs it)\n'
+fi
 
 if [ "$FULL" = 1 ]; then
-  run "dependency resolution"  python3 scripts/check_deps.py
+  if [ "$HAVE_DOCKER" = 1 ]; then
+    run "dependency resolution"  python3 scripts/check_deps.py
+  else
+    printf '\nskip  dependency resolution: it reads build args through docker compose (CI deps runs it)\n'
+  fi
   run "contract snapshots"     python3 scripts/snapshot_contracts.py --check
-  # No --quick, as in CI: the restart round is part of what this covers.
-  run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev
-  # The smoke run leaves the dev stack up; take it down either way.
-  docker compose -f docker-compose.yml down >/dev/null 2>&1
-  rm -rf smoke-results
+  if [ "$HAVE_DOCKER" = 1 ]; then
+    # No --quick, as in CI: the restart round is part of what this covers.
+    run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev
+    # The smoke run leaves the dev stack up; take it down either way.
+    docker compose -f docker-compose.yml down >/dev/null 2>&1
+    rm -rf smoke-results
+  else
+    printf '\nskip  dev stack end to end: docker is not installed here (CI e2e runs it)\n'
+  fi
 fi
 
 echo

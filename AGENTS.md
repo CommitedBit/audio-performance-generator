@@ -8,6 +8,25 @@ Instructions for coding agents (Codex and others). Read these first:
 2. **[HANDOFF.md](HANDOFF.md)**: current state, what is and is not verified,
    review priorities, and the backlog of foundational work.
 
+## Environment setup
+
+```bash
+scripts/bootstrap.sh     # backend/.venv with dev extras, frontend npm ci (needs network)
+scripts/check.sh         # every offline check
+```
+
+| Check | Needs |
+| --- | --- |
+| backend pytest + ruff, frontend lint/build/test | nothing after bootstrap |
+| `docker compose config` (all topologies) | Docker. Skipped with a note when it is absent |
+| `scripts/snapshot_contracts.py --check` | network (`scripts/check.sh --full`) |
+| `scripts/check_deps.py` | network and Docker (`--full`). Skipped without Docker; CI's `deps` job runs it |
+| `scripts/smoke_gpu.py --dev` | Docker (`--full`). Skipped when absent; CI's `e2e` job always runs it |
+| `scripts/smoke_gpu.py` on real models | the owner's GPU VM; agents cannot run it |
+
+When a check cannot run where you are, say so in the PR. CI runs all of them
+except the GPU run.
+
 ## Non-negotiables
 
 - **Never force-push.** Never rewrite a branch someone else has pushed.

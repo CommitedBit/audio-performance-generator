@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -182,6 +183,12 @@ def resolve(torch_index: str, python: str, torch_pin: str, requirements: str, ex
 
 
 def main() -> int:
+    # Both are needed: compose to read the real build args, uv to resolve.
+    missing = [tool for tool in ("docker", "uv") if shutil.which(tool) is None]
+    if missing:
+        print(f"check_deps needs {' and '.join(missing)} on PATH (docker compose reads the build "
+              "args; uv resolves). CI's deps job runs this check.", file=sys.stderr)
+        return 2
     failed = 0
     for (cuda_tag, torch_index, python, torch_pin, requirements, extras), used_by in gpu_images().items():
         label = f"{requirements} [{', '.join(used_by)}]"

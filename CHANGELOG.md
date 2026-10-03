@@ -25,6 +25,12 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   upgrades rewrite `package-lock.json`. All 103 frontend tests run under it.
 
 ### Added
+- **`scripts/bootstrap.sh`: one command from a fresh checkout to a working
+  environment** (`backend/.venv` with dev extras, then `npm ci`). AGENTS.md
+  says which checks need network, Docker or the GPU VM.
+  `scripts/check.sh` skips the Docker checks with a note when Docker is
+  absent, as in most agent sandboxes, rather than failing; CI still runs
+  them.
 - **`scripts/smoke_gpu.py --idle-check` (opt-in) checks that idle unloading
   frees VRAM.** It restarts the model services so the baseline comes from
   processes that have never loaded a model, waits for the idle sweep to unload
