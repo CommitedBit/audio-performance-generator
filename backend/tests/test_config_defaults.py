@@ -38,7 +38,9 @@ def test_idle_timeout_default_agrees_everywhere(monkeypatch):
 
     code = str(get_settings().model_idle_timeout)
     assert code == _env_example("MODEL_IDLE_TIMEOUT")
-    for rel in ("compose.gpu.yml", "compose.gpu.split.yml"):
+    # docker-compose.yml too: without the pass-through, smoke_gpu.py --dev
+    # --idle-check cannot shorten the stubs' timeout and always fails.
+    for rel in ("compose.gpu.yml", "compose.gpu.split.yml", "docker-compose.yml"):
         assert _compose_default(rel, "MODEL_IDLE_TIMEOUT") == code, rel
 
 

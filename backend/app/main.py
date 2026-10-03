@@ -117,6 +117,12 @@ def _gpu_info() -> dict | None:
             "name": torch.cuda.get_device_name(0),
             "vram_total_gb": round(total / 1024**3, 2),
             "vram_free_gb": round(free / 1024**3, 2),
+            # This process's share, where the two above are the whole card.
+            # scripts/smoke_gpu.py --idle-check needs it: after an unload,
+            # nvidia-smi still shows the CUDA context and kernels the process
+            # keeps, and a small model left referenced fits inside that.
+            "torch_allocated_gb": round(torch.cuda.memory_allocated() / 1024**3, 2),
+            "torch_reserved_gb": round(torch.cuda.memory_reserved() / 1024**3, 2),
         }
     except Exception:                                  # noqa: BLE001
         return None

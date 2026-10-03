@@ -8,6 +8,40 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+### Added
+- **`scripts/smoke_gpu.py --idle-check` (opt-in) checks that idle unloading
+  frees VRAM.** It restarts the model services so the baseline comes from
+  processes that have never loaded a model, waits for the idle sweep to unload
+  every model, and then requires each process's PyTorch allocations back
+  within 0.25 GiB of the baseline and the card's VRAM within 1 GiB per model
+  service. Baseline, peak and after-unload VRAM and both residuals go into
+  `report.txt` and `results.json`. It needs a short timeout:
+  `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --idle-check`; above
+  300 s it refuses to start. It has not run on the GPU, so neither allowance
+  is measured. With `--dev` it checks the unload only and reports VRAM as not
+  measured, for which `docker-compose.yml` now passes `MODEL_IDLE_TIMEOUT`
+  through to the stubs.
+- **A model service's `/health` reports its own PyTorch allocations**
+  (`gpu.torch_allocated_gb`, `gpu.torch_reserved_gb`) beside the card's free
+  and total VRAM. `--idle-check` reads them: after an unload, `nvidia-smi`
+  still shows the kernels a process keeps, and Stable Audio 3 small left
+  resident would fit inside that.
+
+### Fixed
+- **`scripts/smoke_gpu.py` read the gateway's cached view of a model service
+  it had just replaced.** For 3 s after `up` recreated a service (for example
+  a run with a different `MODEL_IDLE_TIMEOUT`), the gateway still reported
+  the old process: ready, with its models loaded. A run chained straight
+  after another then failed every submit with a 502. The script now waits the
+  cache out after `up` and after every restart.
+- **CI's e2e job and `scripts/check.sh --full` skipped the smoke script's
+  restart round** (`--quick`), while HANDOFF.md counted a restart as covered.
+  Both now run it.
+- **docs/plan.md and CI named a shell-script smoke runner that never
+  existed;** they now name `scripts/smoke_gpu.py`. docs/plan.md's M2 also
+  promised an idle-unload VRAM check the script did not have; it now points
+  at `--idle-check`.
+
 ## [0.1.1] - 2026-10-03
 
 ### Fixed

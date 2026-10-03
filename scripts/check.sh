@@ -5,7 +5,7 @@
 #                             lint/build/test, compose config for all topologies
 #   scripts/check.sh --full   also: dependency resolution, contract snapshots
 #                             against the pinned sources (both need network) and
-#                             the dev stack end to end (needs Docker)
+#                             the dev stack end to end, restart included (Docker)
 #
 # Written for bash 3.2 (the macOS default): no associative arrays, no mapfile.
 # Runs every check even after a failure, then exits non-zero if any failed.
@@ -48,7 +48,8 @@ run "compose: split"  docker compose -f compose.gpu.yml -f compose.gpu.split.yml
 if [ "$FULL" = 1 ]; then
   run "dependency resolution"  python3 scripts/check_deps.py
   run "contract snapshots"     python3 scripts/snapshot_contracts.py --check
-  run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev --quick
+  # No --quick, as in CI: the restart round is part of what this covers.
+  run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev
   # The smoke run leaves the dev stack up; take it down either way.
   docker compose -f docker-compose.yml down >/dev/null 2>&1
   rm -rf smoke-results

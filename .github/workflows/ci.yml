@@ -1,5 +1,5 @@
 # Fast checks that run without a GPU or model weights. The GPU path is verified
-# separately on the target VM (scripts/smoke_gpu.sh).
+# separately on the target VM (scripts/smoke_gpu.py).
 name: ci
 
 on:
@@ -65,11 +65,13 @@ jobs:
   e2e:
     # The dev topology end to end -- built images, gateway, placeholder model
     # service -- driven by the same script that validates the GPU box, which
-    # also keeps that script from rotting between GPU runs.
+    # also keeps that script from rotting between GPU runs. No --quick: the
+    # restart round is the only check that the stack recovers when its model
+    # service restarts, and HANDOFF.md counts it as covered here.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/smoke_gpu.py --dev --quick
+      - run: python3 scripts/smoke_gpu.py --dev
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
