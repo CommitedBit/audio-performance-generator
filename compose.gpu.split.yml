@@ -1,0 +1,81 @@
+# FALLBACK TOPOLOGY -- use only if the unified environment misbehaves.
+#
+#   DOCKER_CONTEXT=gpu docker compose -f compose.gpu.yml -f compose.gpu.split.yml up -d --build
+#
+# Gives ACE-Step its own container, because its transformers range
+# (>=4.51.0,<4.58.0) is the one that sits furthest from the other two (5.x).
+# The `models` service then carries Chatterbox + Stable Audio 3 only.
+#
+# No application code changes: the gateway discovers whatever each upstream
+# advertises, so topology is purely a compose concern.
+
+services:
+  gateway:
+    environment:
+      UPSTREAMS: models=http://models:8000,music=http://music:8000
+
+  models:
+    build:
+      args:
+        # Chatterbox + Stable Audio 3 only, against their own dependency set --
+        # without ACE-Step's transformers <4.58 ceiling, which is what lets
+        # Stable Audio 3 get the diffusers 0.40 / huggingface-hub 1.x it needs.
+        MODEL_REQUIREMENTS: requirements-models-voice-sfx.txt
+        MODELS: >-
+          chatterbox-tts==0.1.7
+          git+https://github.com/Stability-AI/stable-audio-3@779434a90819
+    environment:
+      # The registry drops every provider not named here, so the ElevenLabs
+      # fallback must be listed explicitly; without ELEVENLABS_API_KEY it is
+      # still simply reported unavailable.
+      PROVIDERS: chatterbox,stable-audio-3-sfx,stable-audio-3-music,elevenlabs-voice,elevenlabs-sfx
+      # Separate containers have separate job queues, so MAX_CONCURRENT_JOBS
+      # alone would limit each container, not the card. These GPU slots are
+      # lock files on the shared models volume that BOTH services take, so the
+      # limit applies to the GPU as a whole. Keep the path identical on both.
+      GPU_LOCK_FILE: /models/.gpu-slot
+
+  music:
+    build:
+      context: ./backend
+      args:
+        BASE: cuda
+        CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
+        TORCH_INDEX: ${TORCH_INDEX:-cu128}
+        PYTHON_VERSION: "3.12"
+        # ACE-Step alone, on its own declared dependencies and its own declared
+        # torch (2.10.0+cu128 -- cu128 carries sm_120).
+        TORCH_PIN: torch==2.10.0+cu128 torchaudio==2.10.0+cu128 torchvision==0.25.0+cu128
+        MODEL_REQUIREMENTS: requirements-models-acestep.txt
+        MODELS: git+https://github.com/ace-step/ACE-Step-1.5@ca1e85fe9430
+    environment:
+      DEVICE: cuda
+      DEV_STUB: "0"
+      DATA_DIR: /data
+      HF_HOME: /models
+      HF_TOKEN: ${HF_TOKEN:-}
+      PROVIDERS: acestep
+      GPU_LOCK_FILE: /models/.gpu-slot
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
+      PROVIDER_RETRY_SECONDS: ${PROVIDER_RETRY_SECONDS:-300}
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      TORCH_CUDA_ARCH_LIST: "12.0"
+      ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
+      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
+      ACESTEP_LM_MODEL: ${ACESTEP_LM_MODEL:-}
+    volumes:
+      - models:/models
+      - ${DATA_PATH:-/srv/story/data}:/data
+    # Same bind mount as the base services, so same ownership prerequisite.
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

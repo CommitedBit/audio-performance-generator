@@ -1,0 +1,155 @@
+# THE REAL DEPLOYMENT: Proxmox VM with an RTX 5090 passed through.
+#
+#   docker context create gpu --docker "host=ssh://user@gpu-vm"
+#   DOCKER_CONTEXT=gpu docker compose -f compose.gpu.yml up -d --build
+#
+# Build ON the GPU box. Do not build on an arm64 Mac: nothing CUDA can even run
+# there, and compiling CUDA extensions under QEMU is a multi-day proposition.
+#
+# ---------------------------------------------------------------------------
+# ONE model container, not three.
+#
+# The three model packages declare disjoint transformers ranges --
+#   ACE-Step-1.5   >=4.51.0,<4.58.0   chatterbox-tts  ==5.2.0   stable-audio-3  >=5.8.0
+# -- so no resolver satisfies them together, and they are installed --no-deps
+# against the hand-written pin set in backend/requirements-models.txt.
+#
+# Their torch pins are NOT code constraints. ACE-Step declares torch==2.7.1+cu128
+# on win32 and torch==2.10.0+cu128 on linux from the SAME codebase, and none of
+# the three gates on torch.__version__ anywhere. torch 2.7.1's cu128 build ships
+# sm_120, so one torch serves all three.
+#
+# If the unified environment misbehaves, compose.gpu.split.yml gives ACE-Step
+# its own container. Nothing in the app changes -- the gateway makes topology a
+# compose-file decision.
+# ---------------------------------------------------------------------------
+
+name: audio-performance-generator
+
+services:
+  # Prepares the DATA_PATH bind mount for the non-root services below.
+  #
+  # When DATA_PATH does not exist yet, Docker creates it root-owned, while the
+  # app runs as uid 10001 (see backend/Dockerfile). Settings creates /data/audio
+  # and /data/voices at import, so both gateway and models would die with
+  # PermissionError on a fresh host. This one-shot container fixes ownership as
+  # root, exits, and only then do the app containers start -- they themselves
+  # never run as root.
+  #
+  # Non-recursive on purpose: the app only needs to create files inside these
+  # directories, and a recursive chown over a large audio library would slow
+  # every start.
+  data-init:
+    image: busybox:1.37
+    user: "0:0"
+    command:
+      - sh
+      - -c
+      - mkdir -p /data/audio /data/voices && chown 10001:10001 /data /data/audio /data/voices
+    volumes:
+      - ${DATA_PATH:-/srv/story/data}:/data
+    restart: "no"
+
+  gateway:
+    build:
+      context: ./backend
+      args:
+        BASE: cpu                     # no models here, no GPU needed
+    command: ["python", "-m", "uvicorn", "app.gateway:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      UPSTREAMS: models=http://models:8000
+      DATA_DIR: /data
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      FORWARD_TIMEOUT: ${FORWARD_TIMEOUT:-900}
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - ${DATA_PATH:-/srv/story/data}:/data
+    ports:
+      # 127.0.0.1 on purpose: Docker's published ports BYPASS ufw, so a bare
+      # "8000:8000" would expose an unauthenticated GPU to the whole LAN.
+      # Reach it over Tailscale or an SSH tunnel instead.
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+      models:
+        condition: service_started
+    restart: unless-stopped
+
+  models:
+    build:
+      context: ./backend
+      args:
+        BASE: cuda
+        # >= 12.8 is mandatory for sm_120. 12.4/cu124 carry no sm_120 kernels.
+        CUDA_TAG: ${CUDA_TAG:-12.8.1-cudnn-runtime-ubuntu24.04}
+        TORCH_INDEX: ${TORCH_INDEX:-cu128}
+        # 3.12 is the only interpreter inside ACE-Step's >=3.11,<3.13 cap that
+        # the other two also accept.
+        PYTHON_VERSION: "3.12"
+        # torch 2.7.1+cu128 is built with sm_120 in its arch list.
+        TORCH_PIN: torch==2.7.1+cu128 torchaudio==2.7.1+cu128
+        # Commit-pinned so rebuilds are reproducible. ACE-Step needs a main
+        # commit after 2026-07-23, not tag v0.1.8.
+        MODELS: >-
+          chatterbox-tts==0.1.7
+          git+https://github.com/ace-step/ACE-Step-1.5@ca1e85fe9430
+          git+https://github.com/Stability-AI/stable-audio-3@779434a90819
+    environment:
+      DEVICE: cuda
+      DEV_STUB: "0"
+      DATA_DIR: /data
+      HF_HOME: /models
+      HF_TOKEN: ${HF_TOKEN:-}
+      PROVIDERS: ${PROVIDERS:-auto}
+      # The ElevenLabs providers run here, not in the gateway. Blank means the
+      # cloud fallback is simply not advertised.
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      # Leave at 1 unless you have measured the VRAM headroom for two models
+      # generating at once. Jobs that share one Stable Audio 3 pipeline are
+      # serialised on it automatically either way.
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-1}
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
+      PROVIDER_RETRY_SECONDS: ${PROVIDER_RETRY_SECONDS:-300}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Several multi-GB models cycle through VRAM; limits fragmentation.
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      TORCH_CUDA_ARCH_LIST: "12.0"
+      # 'pt' avoids nano-vllm, which is why ACE-Step pins torch at all and is
+      # reported broken on sm_120.
+      ACESTEP_BACKEND: ${ACESTEP_BACKEND:-pt}
+      # Blank means the provider's default checkpoint.
+      ACESTEP_MODEL: ${ACESTEP_MODEL:-}
+      ACESTEP_LM_MODEL: ${ACESTEP_LM_MODEL:-}
+      SA3_MODEL: ${SA3_MODEL:-}
+    volumes:
+      # Named volume for the HF cache: daemon-side, and symlink-capable for
+      # HF's blobs/snapshots layout. A bind mount here would resolve to a path
+      # on the REMOTE host and is easy to get silently wrong.
+      - models:/models
+      # Absolute bind mount for output you want to find outside Docker.
+      - ${DATA_PATH:-/srv/story/data}:/data
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all            # mutually exclusive with device_ids
+              capabilities: [gpu]   # mandatory; compose errors without it
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: /api
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
+    depends_on: [gateway]
+    restart: unless-stopped
+
+volumes:
+  models:     # HF weight cache: ~31 GB for these three

@@ -1,0 +1,148 @@
+/* Replaces the Vite starter stylesheet. The old one centred <body> with flex
+   and set h1 to 3.2em, which actively fought the timeline's absolute layout. */
+
+:root {
+  --bg: #17181c;
+  --panel: #1f2126;
+  --border: #2e3138;
+  --text: #e7e9ee;
+  --muted: #9aa1ad;
+  --accent: #6b8afd;
+  --error: #ff6b6b;
+  --warn: #f5b301;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color-scheme: dark;
+  color: var(--text);
+  background-color: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+main { padding: 16px; }
+
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.appbar nav { display: flex; gap: 12px; margin-left: auto; }
+.appbar a { color: var(--muted); text-decoration: none; }
+.appbar a:hover { color: var(--text); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.spacer { flex: 1; }
+
+label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+
+textarea, input, select {
+  background: #15161a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+textarea { width: 100%; resize: vertical; }
+input[type='number'] { width: 72px; }
+
+button {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 14px;
+  background: #272a31;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.tab { background: transparent; }
+.tab-active { background: var(--accent); border-color: var(--accent); color: #0d1017; font-weight: 600; }
+
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.error { color: var(--error); }
+.warn { color: var(--warn); }
+.dim { opacity: 0.5; }
+
+.badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #0d1017;
+  font-size: 11px;
+}
+
+/* -- timeline -------------------------------------------------------------- */
+
+.timeline { overflow-x: auto; }
+
+.track {
+  position: relative;
+  height: 64px;
+  border-bottom: 1px solid var(--border);
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent 99px,
+    #24262c 99px,
+    #24262c 100px
+  );
+}
+
+.track-label {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  z-index: 2;
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.clip {
+  border-radius: 4px;
+  cursor: grab;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+}
+.clip:active { cursor: grabbing; }
+
+.providers { width: 100%; border-collapse: collapse; font-size: 14px; }
+.providers th, .providers td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.providers th { color: var(--muted); font-weight: 500; }
+
+.voices { list-style: none; padding: 0; }
+.voices li { display: flex; align-items: center; gap: 10px; padding: 5px 0; }

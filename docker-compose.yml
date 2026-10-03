@@ -1,0 +1,64 @@
+# LOCAL DEVELOPMENT ONLY. No GPU, no model weights, no downloads.
+#
+#   docker compose up --build        ->  http://localhost:8080
+#
+# This exists to exercise the API surface, the job queue and the frontend
+# without a GPU. It runs the tone-generating stub providers, NOT real models.
+# The full stack runs on the Proxmox box -- see compose.gpu.yml.
+#
+# It deliberately routes through the same gateway as production so the API
+# semantics are identical here and there (job ids are prefixed with their
+# service in both), rather than letting dev quietly diverge.
+
+name: audio-performance-generator-dev
+
+services:
+  gateway:
+    build:
+      context: ./backend
+      args:
+        BASE: cpu
+    command: ["python", "-m", "uvicorn", "app.gateway:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      UPSTREAMS: stub=http://stub:8000
+      DATA_DIR: /data
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      # Must be set HERE, not only on nginx: the gateway enforces the key, and
+      # this port is published directly, so without it anyone could bypass
+      # nginx and call the API unauthenticated.
+      API_KEY: ${API_KEY:-}
+    volumes:
+      - data:/data
+    ports:
+      # Loopback by default, matching compose.gpu.yml: Docker's published ports
+      # bypass ufw.
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
+    depends_on: [stub]
+    restart: unless-stopped
+
+  stub:
+    build:
+      context: ./backend
+      args:
+        BASE: cpu
+    environment:
+      DEVICE: cpu
+      DEV_STUB: "1"
+      DATA_DIR: /data
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - data:/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: /api
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${FRONTEND_PORT:-8080}:80"
+    depends_on: [gateway]
+    restart: unless-stopped
+
+volumes:
+  data:
