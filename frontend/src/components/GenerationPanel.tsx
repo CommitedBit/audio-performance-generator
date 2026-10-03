@@ -31,8 +31,10 @@ export default function GenerationPanel() {
 
   const [capability, setCapability] = useState<Capability>('voice');
   const [text, setText] = useState('');
-  const [providerId, setProviderId] = useState<string>('');
-  const [voiceId, setVoiceId] = useState<string>('');
+  // The user's explicit picks. The provider and voice actually used are
+  // derived from these during render, below.
+  const [chosenProviderId, setProviderId] = useState<string>('');
+  const [chosenVoiceId, setVoiceId] = useState<string>('');
   const [seconds, setSeconds] = useState<number>(8);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,15 +53,15 @@ export default function GenerationPanel() {
   const providers = useMemo(() => allFor(models, capability), [models, capability]);
   const usable = useMemo(() => providers.filter(p => p.available), [providers]);
 
-  // Follow the server's default whenever the capability changes, rather than
-  // pinning a provider the UI happens to have listed first. Never fall back to
-  // a cloud provider on our own: the server deliberately has no default when
-  // only cloud can serve, so sending text out stays an explicit choice.
-  useEffect(() => {
-    const preferred = models?.defaults?.[capability] ?? '';
-    const stillValid = usable.some(p => p.id === providerId);
-    if (!stillValid) setProviderId(preferred || usable.find(p => !p.remote)?.id || '');
-  }, [capability, models, usable, providerId]);
+  // Keep the user's pick while it can serve this capability; otherwise follow
+  // the server's default, rather than pinning a provider the UI happens to have
+  // listed first. Never fall back to a cloud provider on our own: the server
+  // deliberately has no default when only cloud can serve, so sending text out
+  // stays an explicit choice. Derived during render -- an effect copying it
+  // into state rendered a stale provider first.
+  const providerId = usable.some(p => p.id === chosenProviderId)
+    ? chosenProviderId
+    : (models?.defaults?.[capability] ?? '') || usable.find(p => !p.remote)?.id || '';
 
   const onlyCloud = usable.length > 0 && usable.every(p => p.remote);
 
@@ -68,11 +70,9 @@ export default function GenerationPanel() {
     [providers, providerId]
   );
 
-  useEffect(() => {
-    if (!provider) return;
-    const stillValid = provider.voices.some(v => v.id === voiceId);
-    if (!stillValid) setVoiceId(provider.voices[0]?.id ?? '');
-  }, [provider, voiceId]);
+  const voiceId = provider?.voices.some(v => v.id === chosenVoiceId)
+    ? chosenVoiceId
+    : provider?.voices[0]?.id ?? '';
 
   // Duration bounds come from the provider, not a fixed range: ACE-Step takes
   // 10-600 s, ElevenLabs SFX at most 22 s. A provider with no `seconds` param
@@ -87,14 +87,18 @@ export default function GenerationPanel() {
 
   // On switching provider, keep the chosen length if it still fits, otherwise
   // take the new provider's default. Keyed on provider only, so typing a
-  // partial number (e.g. "3" on the way to "30") is never clobbered.
-  useEffect(() => {
-    const spec = provider?.params.find(p => p.name === 'seconds');
-    if (!spec) return;
-    const lo = spec.minimum ?? -Infinity;
-    const hi = spec.maximum ?? Infinity;
-    setSeconds(prev => (prev >= lo && prev <= hi ? prev : Number(spec.default)));
-  }, [provider]);
+  // partial number (e.g. "3" on the way to "30") is never clobbered. Adjusted
+  // during render when the provider changes (React's pattern for state that
+  // follows a prop), not in an effect, which rendered the old length first.
+  const [secondsFor, setSecondsFor] = useState<ProviderInfo | undefined>(undefined);
+  if (provider !== secondsFor) {
+    setSecondsFor(provider);
+    if (secondsSpec) {
+      const lo = secondsSpec.minimum ?? -Infinity;
+      const hi = secondsSpec.maximum ?? Infinity;
+      if (!(seconds >= lo && seconds <= hi)) setSeconds(Number(secondsSpec.default));
+    }
+  }
 
   useEffect(() => () => abortRef.current?.abort(), []);
 

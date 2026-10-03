@@ -12,7 +12,9 @@ export default tseslint.config([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
+      // react-hooks 7 ships flat configs under `configs.flat`; the old
+      // top-level 'recommended-latest' is the legacy eslintrc form.
+      reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
     languageOptions: {

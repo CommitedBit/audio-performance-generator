@@ -22,7 +22,6 @@ export function useModels(): ModelsState {
 
   useEffect(() => {
     const ac = new AbortController();
-    setLoading(true);
     fetchModels(ac.signal)
       .then(res => {
         setModels(res);
@@ -38,7 +37,12 @@ export function useModels(): ModelsState {
     return () => ac.abort();
   }, [nonce]);
 
-  const refresh = useCallback(() => setNonce(n => n + 1), []);
+  // Loading starts true for the first fetch; a refresh raises it here, in the
+  // event, rather than in the effect, where setState costs an extra render.
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setNonce(n => n + 1);
+  }, []);
   return { models, loading, error, refresh };
 }
 

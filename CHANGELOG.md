@@ -8,6 +8,20 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+### Changed
+- **The frontend lint toolchain moves to ESLint 10** (`eslint` 10,
+  `@eslint/js` 10, `eslint-plugin-react-hooks` 7) in one step, replacing three
+  Dependabot PRs that each failed alone. react-hooks 7's new
+  `set-state-in-effect` rule flagged four effects that copied derived values
+  into state, costing an extra render with stale values:
+  - the generation panel's provider and voice are now derived during render
+  - its length adjusts when the provider changes, during render, so typing is
+    still never clobbered
+  - `useModels` raises `loading` in `refresh()`
+
+  The behaviour is unchanged. New tests pin it, and they pass on the old code
+  too. Dependabot now groups ESLint packages so they arrive together.
+
 ### Added
 - **`scripts/smoke_gpu.py --idle-check` (opt-in) checks that idle unloading
   frees VRAM.** It restarts the model services so the baseline comes from
