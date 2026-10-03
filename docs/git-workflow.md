@@ -139,7 +139,14 @@ part of the foundation. Change them deliberately and record the change here.
   - required status checks: `backend`, `frontend`, `deps`, `e2e`, `compose`
     (not strict, so an out-of-date branch may still merge after green CI)
   - no force-pushes, no deletion
+  - enforced for admins too, so the owner's account cannot bypass it
 - **Automatically delete head branches** after merge: on.
+- **Dependabot security alerts:** off. This is the owner's call; turn them on
+  in Settings → Code security. Until then, Dependabot's weekly version PRs and
+  `npm audit` are the only vulnerability signals.
+- **Tag protection:** none. Never moving a tag is a convention only. A `v*`
+  tag ruleset (block updates and deletion) would enforce it; that is also the
+  owner's call.
 - **Merge methods:** merge commits are the convention. The repo still allows
   squash and rebase, but don't use them.
 
@@ -153,11 +160,10 @@ gh api repos/CommitedBit/audio-performance-generator --jq '{delete_branch_on_mer
 
 ## Local environment notes (the owner's Mac)
 
-- **`/usr/bin/git` refuses to run** until the Xcode licence is accepted
-  (`sudo xcodebuild -license accept`; only the owner can do this). Until then
-  use `/Library/Developer/CommandLineTools/usr/bin/git`, or put
-  `/Library/Developer/CommandLineTools/usr/bin` first on `PATH`, which also
-  fixes `gh` commands that shell out to git.
+- **If `/usr/bin/git` ever refuses to run with an Xcode licence message,**
+  only the owner can fix it (`sudo xcodebuild -license accept`). Meanwhile
+  `/Library/Developer/CommandLineTools/usr/bin/git` works. The licence is
+  accepted at present.
 - **Pushes authenticate through `gh`** (`gh auth git-credential` is the
   credential helper for github.com).
 - **No global git identity is set.** Set `user.name` and `user.email` before

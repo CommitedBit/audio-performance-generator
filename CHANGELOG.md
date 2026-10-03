@@ -8,6 +8,27 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+### Changed
+- **CI's `backend` job lints `scripts/`** with ruff, as `scripts/check.sh`
+  already did.
+- **`scripts/check.sh --full` skips dependency resolution with a note when
+  `uv` is missing,** as it already did for Docker, instead of failing.
+
+### Fixed
+- **Documentation corrected after a fresh-clone audit:**
+  - Removed the stale note that git is blocked by the Xcode licence.
+  - AGENTS.md said CI runs every check except the GPU run; it also skips the
+    contract re-check against upstream.
+  - The repo now says how the M2 GPU results reach the next agent: an
+    "M2 results" issue.
+  - The README's setup uses `bootstrap.sh`.
+  - The docs no longer say `.nvmrc` declares the Node floor.
+  - `.env.example` says `VITE_API_TARGET` must be exported in the shell.
+  - git-workflow.md records branch protection enforced for admins, and the
+    two settings left to the owner.
+  - CLAUDE.md gains the heredoc trap.
+  - The 0.3.0 summary's PR range is corrected.
+
 ## [0.3.0] - 2026-10-03
 
 **The unified final version of this work.** Nothing is pending: every
@@ -26,14 +47,16 @@ earlier release, fix and dependency update is in this tag.
     the GPU smoke tooling, contract tests, playback and timeline fixes, docs
     and the release process.
   - **0.1.1** (#17–#20): job-list order, mp3 lengths, job phases.
-  - **0.2.0** (#21–#36): `--idle-check`, CI covering the restart round,
+  - **0.2.0** (#21, #22, #27–#30, #36): `--idle-check`, CI covering the restart round,
     ESLint 10, `scripts/bootstrap.sh`.
   - **0.3.0**: the rest of the frontend toolchain, the Node floor, and
     unified docs.
 - **Verified, in CI on every change:**
   - 189 backend tests and 103 frontend tests
   - wheel-only dependency resolution for every GPU image
-  - model-library calls matched against pinned-source snapshots
+  - model-library calls matched against the committed pinned-source
+    snapshots (the re-check against upstream runs locally, via
+    `scripts/check.sh --full`)
   - the dev stack end to end, including a restart
 - **Not verified: anything on the GPU.** The first real run is
   `python3 scripts/smoke_gpu.py` on the VM, plus `--idle-check` with a short
