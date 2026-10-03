@@ -62,7 +62,8 @@ class Settings:
         self.max_concurrent_jobs: int = int(os.getenv("MAX_CONCURRENT_JOBS", "1"))
 
         # Unload a model after this many seconds idle to free VRAM. 0 disables.
-        self.model_idle_timeout: int = int(os.getenv("MODEL_IDLE_TIMEOUT", "600"))
+        # Same default as compose and .env.example (tests/test_config_defaults.py).
+        self.model_idle_timeout: int = int(os.getenv("MODEL_IDLE_TIMEOUT", "1800"))
 
         # After a provider fails to load, report it unavailable for this long
         # before the next request is allowed to retry the load.

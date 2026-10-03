@@ -1,11 +1,12 @@
 # Split topology, `models` image: Chatterbox + Stable Audio 3, WITHOUT ACE-Step.
 #
 # Without ACE-Step in the image, its transformers <4.58 ceiling -- which also
-# forces huggingface-hub <1.0 -- no longer applies. That matters: the only
-# Stable Audio 3 loader here is diffusers' StableAudio3Pipeline, which first
-# ships in diffusers 0.40.0, and diffusers 0.40.0 requires huggingface-hub
-# >=1.23.0. So Stable Audio 3 can load in THIS image and cannot in the unified
-# one.
+# forces huggingface-hub <1.0 -- no longer applies. That lets this image carry
+# diffusers 0.40.0 (the first release with StableAudio3Pipeline, and it needs
+# huggingface-hub >=1.23.0) as Stable Audio 3's FALLBACK loader. The provider
+# prefers the official stable-audio-3 package, which MODELS installs here as
+# in the unified image; diffusers is used only if that cannot be imported. The
+# unified image cannot carry diffusers 0.40.0 at all.
 #
 # Chatterbox 0.1.7 and stable-audio-3 still conflict on several exact pins, so
 # they install --no-deps against this list. Every conflict is resolved

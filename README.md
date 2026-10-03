@@ -269,6 +269,20 @@ See [.env.example](.env.example).
 | `PROVIDER_RETRY_SECONDS` | `300` | How long a failed model load is reported before the next retry |
 | `MODELS_CACHE_SECONDS` | `3` | Gateway caches discovery this long |
 | `DEV_STUB` | `0` | `1` adds placeholder tone generators (dev only) |
+| `DEVICE` | `auto` | `auto` picks cuda, then mps, then cpu |
+| `PROVIDERS` | `auto` | Comma-separated provider ids a service registers; `auto` = all |
+| `ELEVENLABS_API_KEY` | — | Optional cloud provider; blank = not advertised |
+| `FORWARD_TIMEOUT` | `600` | Gateway → model service, seconds; nginx and Vite allow 660 |
+| `DISCOVERY_TIMEOUT` | `10` | Gateway's per-upstream `/v1/models` timeout, seconds |
+| `UPSTREAMS` | set by compose | Gateway: `key=url,...` of the model services |
+| `GPU_LOCK_FILE` | set by the split compose | Cross-container GPU slot prefix; blank = off |
+| `ACESTEP_MODEL` | `acestep-v15-base` | ACE-Step DiT checkpoint |
+| `ACESTEP_LM_MODEL` | `acestep-5Hz-lm-0.6B` | ACE-Step planning LM; `none` disables it |
+| `ACESTEP_PROJECT_ROOT` | `$HF_HOME/acestep` | Where ACE-Step keeps its checkpoints |
+| `MUSICGEN_MODEL` | `facebook/musicgen-medium` | Legacy provider |
+| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | Browser origins allowed to call the API |
+| `LOG_LEVEL` | `INFO` | |
+| `DATA_DIR` | `/data` | In-container data path; compose mounts `DATA_PATH` there |
 | `VITE_API_TARGET` | `http://localhost:8000` | Where the Mac dev server proxies `/api` |
 
 ## API
