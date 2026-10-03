@@ -1,6 +1,6 @@
 # Handoff: state of the project and what comes next
 
-Written 2026-10-03, at the end of the foundation work. Read
+Written 2026-10-03, for release **v0.1.0**: the first stable foundation. Read
 [CLAUDE.md](CLAUDE.md) first for the architecture, invariants and checks.
 
 ## The project and its owner's decisions
@@ -23,9 +23,16 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is still the original scaffold. All the work is in a stack of PRs, each
-targeting the one below it. **None are merged.** Every PR has passed CI (#4
-predates CI; its code is covered by every later PR's CI).
+`main` is release **v0.1.0**: PRs #4–#16, merged bottom-up with merge commits
+and tagged. The tag publishes the release notes from
+[CHANGELOG.md](CHANGELOG.md). New work branches from `main` and follows
+[docs/git-workflow.md](docs/git-workflow.md):
+- one concern per PR
+- CI must pass
+- a CHANGELOG line for every behaviour change
+- versions move only through `scripts/bump_version.py`
+
+The PRs that make up v0.1.0:
 
 | PR | Branch | What it does |
 |---|---|---|
@@ -40,20 +47,20 @@ predates CI; its code is covered by every later PR's CI).
 | #12 | `feat/clip-playback` | Clip gains sourceDuration, label, gain, fades and audioId; fixes playback sync, Stop, autoplay resume and trim |
 | #13 | `chore/npm-audit` | Clears all 24 npm audit advisories (lockfile only) |
 | #14 | `chore/claude-md-hygiene` | CLAUDE.md, timeout defaults that agree everywhere (with a drift test), `.dockerignore` files, config docs |
+| #15 | `docs/codex-handoff` | AGENTS.md, this file, docs/plan.md |
+| #16 | `chore/foundation-prep` | MIT LICENSE, one version everywhere (+ test and bump script), CHANGELOG, docs/git-workflow.md, PR/issue templates, Dependabot, release workflow, `scripts/check.sh`, cleanup |
 
-**Merging:** bottom-up, with **merge commits** (not squash, since each branch
-contains the ones below it). Retarget each PR to `main` before merging it; the
-repo's auto-delete of head branches is off, so GitHub won't retarget them
-itself. `main` has no branch protection yet; the owner may add required
-checks.
+**Repository settings** (details in docs/git-workflow.md):
+- `main` is protected: changes arrive by PR, the five CI checks are required,
+  and force-pushes and deletion are blocked.
+- Merged branches are deleted automatically.
 
-Merges need the owner's approval. A previous agent's attempt to merge was
-blocked as "merge without review", so leave merging to the owner unless they
-say otherwise.
+**The owner merges.** Agents open PRs and report CI. A previous agent's
+attempt to merge was blocked as "merge without review".
 
 ## What is verified
 
-- **Backend:** 140 pytest tests, no GPU or torch needed. They cover the API end
+- **Backend:** 146 pytest tests, no GPU or torch needed. They cover the API end
   to end through the job queue, gateway routing and readiness, provider
   lifecycle and lock behaviour, the job lanes, the RNG lock, cross-process GPU
   slots, the ElevenLabs credential gate, the Stable Audio 3 shared pipeline,
@@ -106,7 +113,9 @@ say otherwise.
    - `storage._safe` path validation
    - the ElevenLabs key staying server-side
    - ports bound to loopback, and nginx not injecting the key
-6. **Suspected bugs not yet fixed.** Verify each, then fix with a test:
+6. **Known bugs, scheduled for v0.1.1.** Claude fixes these right after
+   v0.1.0, test-first, one PR each. Check `main` and the CHANGELOG before
+   starting one. Until then they are open:
    - **ElevenLabs lengths are wrong in the API.** ElevenLabs returns mp3, and
      only WAV duration is measured server-side:
      - `ElevenLabsVoice` reports `duration=0.0`, and `ElevenLabsSfx` reports
@@ -121,7 +130,10 @@ say otherwise.
      job is still live it is moved to the end of the order and eviction stops.
      That reorders `GET /v1/jobs` and can stop eviction early.
    - **Providers never report progress.** `job.progress` jumps from 0 to 1, so
-     the UI can't show anything for minutes-long music jobs.
+     the UI can't show anything for minutes-long music jobs. The v0.1.1 fix
+     reports honest phases plus elapsed time. Step-level progress from inside
+     the models needs hooks into their libraries that can only be verified on
+     the GPU, so it stays an M3 follow-up.
 
 ## Foundational backlog, in plan order
 
@@ -174,14 +186,14 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
   - No Python lockfile (`uv lock`).
   - Frontend types are not generated from OpenAPI.
   - No structured logging or metrics.
-  - No branch protection on `main`.
 
 ## Environment notes
 
 - **On the owner's Mac, `/usr/bin/git` is blocked** by an unaccepted Xcode
   licence. `/Library/Developer/CommandLineTools/usr/bin/git` works; pushes
   authenticate through `gh`. Don't accept the licence on the owner's behalf.
-- **No global git identity is set** on that Mac.
+- **No global git identity is set** on that Mac. Local git setup is
+  described in docs/git-workflow.md, under "Local environment notes".
 - **The VM** is reached with `DOCKER_CONTEXT=gpu`. All ports bind to loopback
   on purpose.
 - **Model weights** live in a named volume; generated audio lives under
@@ -189,8 +201,6 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
 
 ## Open questions for the owner
 
-- **Merge the stack**, or keep reviewing it as stacked PRs?
-- **Add branch protection** to `main`, with the five CI checks required?
 - **Whether to switch topology** depends on M2's smoke results: if the unified
   image misbehaves, use the split topology.
 - **Model and size for the Ollama director** (8–14B recommended for CPU

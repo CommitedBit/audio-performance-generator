@@ -1,0 +1,27 @@
+# Weekly dependency PRs for what can be updated mechanically.
+#
+# Deliberately NOT here:
+#   pip    -- the model images pin ACE-Step, Stable Audio 3 and Chatterbox
+#             against hand-resolved requirement sets, contract snapshots and a
+#             cu128 torch. A bot bump would break that coupling; update them by
+#             hand (docs/git-workflow.md#dependencies).
+#   docker -- the CUDA base image must stay on a Blackwell-capable 12.8+ tag
+#             that matches TORCH_INDEX; change it deliberately, not weekly.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

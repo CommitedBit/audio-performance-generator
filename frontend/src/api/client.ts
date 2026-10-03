@@ -423,6 +423,8 @@ export type CapabilityStatus = 'ok' | 'cloud' | 'stub' | 'down';
 
 export interface HealthInfo {
   status: 'ok' | 'stub' | 'degraded' | 'down';
+  /** The answering service's release version. */
+  version: string;
   device: string;
   providers_available: number;
   providers_total: number;

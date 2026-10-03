@@ -12,9 +12,10 @@ Instructions for coding agents (Codex and others). Read these first:
 
 - **Never force-push.** Never rewrite a branch someone else has pushed.
   Resolve conflicts with a merge, not a rebase.
-- **One concern per PR.** While the foundation stack is unmerged (see
-  HANDOFF.md), stack new branches on its top, `chore/claude-md-hygiene`. Once
-  it is merged, branch from `main`.
+- **One concern per PR, branched from `main`.** Follow
+  [docs/git-workflow.md](docs/git-workflow.md): branch names, commits, merge
+  commits, versioning and releases. Add a `CHANGELOG.md` `[Unreleased]` line
+  for every behaviour change. Run `scripts/check.sh` before pushing.
 - **Write the failing test first, then fix.** Prove every fix by re-breaking it
   in a scratch copy and watching a test fail. CI
   (`.github/workflows/ci.yml`) must pass before anything merges.

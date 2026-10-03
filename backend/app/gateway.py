@@ -30,8 +30,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
+from . import __version__, storage
 from . import health as health_status
-from . import storage
 from .auth import api_key_middleware
 from .config import get_settings
 from .registry import preference_rank
@@ -87,7 +87,7 @@ FORWARD_TIMEOUT = float(os.getenv("FORWARD_TIMEOUT", "600"))
 
 app = FastAPI(
     title="Audio Performance Generator Gateway",
-    version="0.1.0",
+    version=__version__,
 )
 app.middleware("http")(api_key_middleware)
 app.add_middleware(
@@ -224,6 +224,7 @@ async def health():
         overall = "degraded"
     return {
         "status": overall,
+        "version": __version__,
         "device": "gateway",
         "providers_available": sum(1 for p in providers if p["available"]),
         "providers_total": len(providers),

@@ -1,0 +1,44 @@
+# Publishes a GitHub Release when a version tag is pushed. The tag must match
+# app.__version__, and the notes are that version's CHANGELOG section -- so a
+# release cannot be cut from a commit that was not bumped, or with no notes.
+# Steps to cut one: docs/git-workflow.md#releases
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches the release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 -c 'import re, pathlib; print(re.search(r"^__version__ = \"([^\"]+)\"", pathlib.Path("backend/app/__init__.py").read_text(), re.M).group(1))')
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match app.__version__ ${version}"
+            exit 1
+          fi
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+      - name: Extract the release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$VERSION" > notes.md <<'PY'
+          import re, sys
+          text = open("CHANGELOG.md").read()
+          m = re.search(rf"^## \[{re.escape(sys.argv[1])}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.M | re.S)
+          if not m or not m.group(1).strip():
+              sys.exit(f"CHANGELOG.md has no notes for {sys.argv[1]}")
+          print(m.group(1).strip())
+          PY
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

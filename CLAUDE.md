@@ -63,8 +63,11 @@ browser ─ nginx (frontend/) ─/api→ gateway (app.gateway) ─→ model serv
 
 ## Checks: run all that apply before every push
 
+`scripts/check.sh` runs the offline set below; `scripts/check.sh --full` runs
+everything except the GPU run. The individual commands:
+
 ```bash
-cd backend && .venv/bin/python -m pytest -q && .venv/bin/ruff check app tests   # 140 tests, no GPU or torch
+cd backend && .venv/bin/python -m pytest -q && .venv/bin/ruff check app tests   # no GPU or torch needed
 cd frontend && npm run lint && npm run build && npm test                        # vitest
 python3 scripts/check_deps.py            # every GPU image's deps resolve, wheel-only (network)
 python3 scripts/snapshot_contracts.py --check   # contract snapshots match the pinned sources (network)
@@ -82,8 +85,13 @@ and the GPU run.
   fix it.
 - **Mutation-check every fix.** Re-break it in a scratch copy and confirm a
   test fails. A test that still passes guards nothing.
-- **Never force-push.** Work lands as stacked PRs, each targeting the branch
-  below it, merged bottom-up with merge commits.
+- **Never force-push.** Branch from `main`. Stack PRs only when one builds on
+  another, and merge with merge commits. The full process, including
+  versioning and releases, is in
+  [docs/git-workflow.md](docs/git-workflow.md).
+- **Record the change.** Every behaviour change adds a line under
+  `## [Unreleased]` in `CHANGELOG.md`. Versions move only through
+  `scripts/bump_version.py`.
 - **Commit messages** end with
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end
   with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.

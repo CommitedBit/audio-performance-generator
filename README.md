@@ -319,10 +319,20 @@ Vite proxies `/api` there, matching what nginx does in the container, so
 
 ## Tests
 
+Install the dependencies once:
+
 ```bash
-(cd backend && uv pip install -e ".[dev]" && ruff check app tests && pytest)
-(cd frontend && npm ci && npm run lint && npm test)
+(cd backend && uv pip install -e ".[dev]") && npm --prefix frontend ci
 ```
+
+Then run every check before you push:
+
+```bash
+scripts/check.sh
+```
+
+Add `--full` when dependencies, pins, Docker or the stack changed. It also
+needs network access and Docker.
 
 No GPU, torch or weights needed: providers are faked, the gateway talks to fake
 upstreams, and the GPU-slot tests use real subprocesses. The frontend tests
@@ -343,6 +353,9 @@ If it needs a torch that genuinely conflicts, give it its own service the way
 
 ## Licensing
 
+This repository's code is [MIT-licensed](LICENSE). That covers the code only:
+the models it downloads keep their own terms, as described below.
+
 Model **weights** frequently carry different terms from the **code** that runs
 them. MusicGen is the classic trap — MIT code, CC-BY-NC weights — and F5-TTS is
 the same shape. Each provider declares its own licence and the Server tab shows
@@ -357,10 +370,31 @@ Voice cloning: only clone a voice you have permission to use.
 
 ## Status
 
-Working: local generation for all three track types behind a provider
-abstraction, a gateway that makes topology a compose decision, job queue,
-silent-output detection, optional API-key auth, timeline placement, drag and
-trim, playback.
+Version **0.1.0**, the first stable foundation. See
+[CHANGELOG.md](CHANGELOG.md) for what changed and [HANDOFF.md](HANDOFF.md)
+for the current state and what comes next.
 
-Not built: mixdown/export, project persistence (clips are in memory and lost on
-reload, though their audio survives on the server), and undo.
+**Implemented and tested without a GPU:**
+- Generation for all three track types behind one provider interface.
+- A gateway that makes topology a compose decision.
+- Per-capability health and readiness.
+- The job queue, silent-output detection and optional API-key auth.
+- Timeline placement, trim, playback with Stop, and gain and fades.
+- CI on every pull request.
+
+**Not yet proven on the hardware:** nothing has run on the RTX 5090. The model
+loads, VRAM use and audio quality are unverified until
+`scripts/smoke_gpu.py` passes on the VM.
+
+**Not built yet:**
+- Mixdown and export.
+- Project persistence. Clips live in memory and are lost on reload, though
+  their audio survives on the server.
+- Undo.
+- The planned LLM director (see [docs/plan.md](docs/plan.md)).
+
+## Contributing
+
+Branches, commits, PRs, versioning and releases are described in
+[docs/git-workflow.md](docs/git-workflow.md). Coding agents start at
+[AGENTS.md](AGENTS.md).
