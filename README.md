@@ -40,6 +40,41 @@ docker compose -f compose.gpu.yml exec models nvidia-smi
 Prerequisite: `docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu24.04 nvidia-smi`
 must work inside the VM first.
 
+### First run: `scripts/smoke_gpu.py`
+
+Use this instead of the `up` command above for the first start, and again after
+any change to models, pins or the Dockerfile:
+
+```bash
+cp .env.example .env              # set HF_TOKEN, and API_KEY if exposing
+python3 scripts/smoke_gpu.py      # add --split for the split topology
+```
+
+It works on the VM or from the Mac with `DOCKER_CONTEXT=gpu`, because every
+request goes through `docker compose exec`. The steps:
+
+1. **Preflight.** Checks that the GPU is visible inside containers, that there
+   is enough free disk, and that `HF_TOKEN` is set. It also reminds you to
+   accept the gated Stable Audio 3 licence.
+2. **Build and start**, then wait for `/health/ready`.
+3. **Generate.** One seeded clip each for voice (Chatterbox), music (ACE-Step)
+   and sfx (Stable Audio 3), each with the model named explicitly. This runs
+   three times:
+   - **first:** downloads the weights, so allow up to an hour on a fresh volume
+   - **warm:** the models are already loaded
+   - **cold:** after restarting the model services, the weights load from disk
+4. **Check every clip.** Each must come from the right model, be the right
+   length, and not be silent. The script also records each model's time and
+   peak VRAM.
+
+Everything lands in `smoke-results/<timestamp>/`: the clips, `report.txt`, and
+`results.json`, which holds the timings and VRAM peaks used for model sizing.
+On failure the compose logs are saved there too. Listen to the clips:
+automated checks can tell sound from silence, but not good from bad.
+
+`--quick` skips the restart round. `--dev` runs the same flow against the local
+placeholder stack, to test the script itself.
+
 ### Disk
 
 Weights are roughly **31 GB** (ACE-Step ~10 GB, Stable Audio 3 medium ~10.5 GB,
@@ -110,15 +145,16 @@ manylinux), then again wheel-only. The two results must match. If they don't,
 some package would have to be compiled on the GPU box. CI runs this on every
 pull request.
 
-After first boot, generate one clip per track type and listen to it:
+After the stack boots, `scripts/smoke_gpu.py` (above) generates and checks one
+clip per track type. To see why a model is unavailable:
 
 ```bash
-curl -s localhost:8000/v1/models | jq '.providers[] | {id, available, unavailable_reason}'
+docker compose -f compose.gpu.yml exec gateway curl -s 127.0.0.1:8000/health/ready
 ```
 
-Every provider should report `available: true`. A wrong transformers version
-usually surfaces as an ImportError at model load, which shows up as the
-provider's `unavailable_reason`.
+A wrong transformers version usually surfaces as an ImportError at model load,
+which shows up in the provider's `unavailable_reason` and in the readiness
+problems.
 
 The generation path also runs an automatic sanity check on every clip and fails
 the job rather than storing silence — see *Silent failures* below.
