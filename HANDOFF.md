@@ -61,13 +61,14 @@ attempt to merge was blocked as "merge without review".
 
 ## What is verified
 
-- **Backend:** 150 pytest tests, no GPU or torch needed. They cover the API end
+- **Backend:** 189 pytest tests, no GPU or torch needed. They cover the API end
   to end through the job queue, gateway routing and readiness, provider
   lifecycle and lock behaviour, the job lanes, the RNG lock, cross-process GPU
   slots, the ElevenLabs credential gate, the Stable Audio 3 shared pipeline,
-  stall regressions, contract signatures and default drift. Every regression
+  stall regressions, contract signatures, default drift, and the smoke
+  script's `--idle-check` verdicts against a fake stack. Every regression
   test was mutation-checked: re-breaking the fix makes it fail.
-- **Frontend:** 91 vitest tests (client, store, trim and schedule math,
+- **Frontend:** 99 vitest tests (client, store, trim and schedule math,
   engine, panel, timeline). Lint and build pass.
 - **Dependencies:** all three GPU dependency sets resolve wheel-only for
   x86_64/py3.12/cu128, with the torch pins honoured.
@@ -82,6 +83,9 @@ attempt to merge was blocked as "merge without review".
    call signatures, not behaviour or value types. The first real run is
    `python3 scripts/smoke_gpu.py` on the VM. It needs `HF_TOKEN`, the Stable
    Audio 3 licence accepted on Hugging Face, and roughly 31 GB of downloads.
+   Its opt-in `--idle-check` has run only on the stub stack, so its VRAM
+   comparisons and both allowances are unmeasured too: 0.25 GiB of PyTorch
+   allocations per process, and 1 GiB of VRAM per process.
 2. **The frontend has not been clicked through in a real browser.** This
    covers #7's "only cloud can serve" picker state and #12's playback and trim
    fixes. Playback is unit-tested against a fake `AudioContext`; real browser
@@ -130,7 +134,9 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
 
 - **M2. The first GPU run [GPU, owner].** Run `scripts/smoke_gpu.py` and keep
   `smoke-results/*/results.json`. Its cold, warm and load timings and its VRAM
-  peaks drive M3. It may also force the split topology (`--split`).
+  peaks drive M3. It may also force the split topology (`--split`). Then
+  confirm that idle unloading frees VRAM with a second pass:
+  `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --no-build --quick --idle-check`.
 - **M3. Hardware tuning [GPU]:**
   - **Ollama:** add it as a compose `llm` profile, hidden from the GPU: no
     reservation, plus `NVIDIA_VISIBLE_DEVICES=void` and

@@ -138,7 +138,7 @@ Also in this PR:
 
 ## M2 — first real GPU run (right after M1a)
 
-`scripts/smoke_gpu.sh` on the VM. It comes this early because the result may
+`scripts/smoke_gpu.py` on the VM. It comes this early because the result may
 force the split topology, which changes the dependency checks, the readiness
 defaults, and CLAUDE.md.
 
@@ -152,7 +152,10 @@ defaults, and CLAUDE.md.
     requires `/health/ready` to return 200.
 - **Each WAV is checked** for duration and RMS, and that it is not a stub tone.
 - **Timings:** download, cold-from-disk, and warm loads timed separately. Peak
-  VRAM per model recorded. Confirm an idle unload frees VRAM.
+  VRAM per model recorded.
+- **Idle unload (opt-in):** `--idle-check` confirms that an idle unload frees
+  VRAM. It needs a short timeout, so it is not part of the default run:
+  `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --idle-check`.
 - **On failure:** save the compose logs; print a pass/fail report.
 - **README:** rewrite the deploy section around the script (the manual `chown`
   step is obsolete).
@@ -350,8 +353,9 @@ between sessions.
 - **M1:** the suite passes locally and in CI. Each regression test is first
   shown to fail on the pre-fix version of its file. PR B's tests show the API
   responding during a blocked load. Snapshots regenerate byte-identically.
-- **M2:** `smoke_gpu.sh` exits 0 on the VM and `/health/ready` returns 200.
-  You listen to the three clips.
+- **M2:** `smoke_gpu.py` exits 0 on the VM and `/health/ready` returns 200.
+  You listen to the three clips. A run with `--idle-check` shows that idle
+  unloading returns the VRAM.
 - **M3:** with Ollama loaded, every audio model still loads, `nvidia-smi` shows
   no Ollama process, and reload timings are recorded.
 - **M4:** unit tests for the script parser, anchors, layout, clamping and

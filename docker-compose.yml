@@ -48,6 +48,10 @@ services:
       DEV_STUB: "1"
       DATA_DIR: /data
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Passed through as compose.gpu.yml does, so that a short timeout from
+      # `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --dev --idle-check`
+      # reaches the stubs: they load and unload like real models, minus VRAM.
+      MODEL_IDLE_TIMEOUT: ${MODEL_IDLE_TIMEOUT:-1800}
     volumes:
       - data:/data
     restart: unless-stopped

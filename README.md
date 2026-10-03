@@ -75,6 +75,37 @@ automated checks can tell sound from silence, but not good from bad.
 `--quick` skips the restart round. `--dev` runs the same flow against the local
 placeholder stack, to test the script itself.
 
+`--idle-check` is opt-in. It checks that idle unloading gives the VRAM back.
+First it restarts the model services, so the baseline comes from processes that
+have never loaded a model. After the last round it waits until no model is
+loaded, then requires two things:
+
+- **Each model service's own PyTorch allocations** (from its `/health`) are
+  back within 0.25 GiB of the baseline. This is what catches a model left
+  referenced: even the smallest, Stable Audio 3 small (459M parameters), holds
+  about 0.85 GiB at half precision.
+- **The card's VRAM** (from `nvidia-smi`) is back within 1 GiB per model
+  service. Each process keeps the kernels and library workspaces it loaded, so
+  this check alone would miss a small model left resident. It catches memory
+  held outside PyTorch.
+
+`report.txt` and `results.json` record the baseline, peak and after-unload VRAM
+and both residuals. Neither allowance has been measured on the 5090. The
+default `MODEL_IDLE_TIMEOUT` (1800 s) is too long to wait for, and the check
+refuses anything over 300 s, so give the run a short one; compose passes it
+through:
+
+```bash
+MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --idle-check
+```
+
+A timeout that short also unloads models between rounds, so take timings and
+peaks from a run without it, and add `--no-build --quick` when the check is a
+second pass. The stack keeps the short timeout until it is next started without
+it (`docker compose -f compose.gpu.yml up -d`). With `--dev` the stubs load and
+unload but hold no VRAM: the unload is checked, and VRAM is reported as not
+measured. The check has not yet run on the GPU.
+
 ### Disk
 
 Weights are roughly **31 GB** (ACE-Step ~10 GB, Stable Audio 3 medium ~10.5 GB,
@@ -331,14 +362,17 @@ Then run every check before you push:
 scripts/check.sh
 ```
 
-Add `--full` when dependencies, pins, Docker or the stack changed. It also
-needs network access and Docker.
+Add `--full` when dependencies, pins, Docker or the stack changed. It adds
+dependency resolution, the contract snapshot check and the dev stack end to end
+(restart round included), so it needs network access and Docker.
 
 No GPU, torch or weights needed: providers are faked, the gateway talks to fake
 upstreams, and the GPU-slot tests use real subprocesses. The frontend tests
 (vitest) stub `fetch` and fake Web Audio, so they need neither a server nor a
-browser. CI (`.github/workflows/ci.yml`) runs these plus the frontend build and
-a `docker compose config` of every topology, on every pull request.
+browser. CI (`.github/workflows/ci.yml`) runs these on every pull request,
+plus the frontend build, dependency resolution, the dev stack end to end
+(`scripts/smoke_gpu.py --dev`, restart round included) and a
+`docker compose config` of every topology.
 
 ## Adding a model
 

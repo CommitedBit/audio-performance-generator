@@ -71,7 +71,7 @@ cd backend && .venv/bin/python -m pytest -q && .venv/bin/ruff check app tests   
 cd frontend && npm run lint && npm run build && npm test                        # vitest
 python3 scripts/check_deps.py            # every GPU image's deps resolve, wheel-only (network)
 python3 scripts/snapshot_contracts.py --check   # contract snapshots match the pinned sources (network)
-python3 scripts/smoke_gpu.py --dev --quick      # dev stack end to end (Docker); then: docker compose -f docker-compose.yml down
+python3 scripts/smoke_gpu.py --dev              # dev stack end to end, restart round included (Docker); then: docker compose -f docker-compose.yml down
 docker compose -f compose.gpu.yml -f compose.gpu.split.yml config -q            # also docker-compose.yml and compose.gpu.yml alone
 ```
 
