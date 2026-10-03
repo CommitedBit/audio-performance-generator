@@ -8,11 +8,13 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-03
+
 ### Changed
 - **CI's `backend` job lints `scripts/`** with ruff, as `scripts/check.sh`
-  already did.
+  already did. #39
 - **`scripts/check.sh --full` skips dependency resolution with a note when
-  `uv` is missing,** as it already did for Docker, instead of failing.
+  `uv` is missing,** as it already did for Docker, instead of failing. #39
 
 ### Fixed
 - **Documentation corrected after a fresh-clone audit:**
@@ -28,6 +30,8 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
     two settings left to the owner.
   - CLAUDE.md gains the heredoc trap.
   - The 0.3.0 summary's PR range is corrected.
+
+  #39
 
 ## [0.3.0] - 2026-10-03
 

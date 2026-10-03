@@ -1,6 +1,6 @@
 # Handoff: state of the project and what comes next
 
-Written 2026-10-03, for release **v0.3.0**: the unified final version of this work. Read
+Written 2026-10-03, for release **v0.3.1**: the unified final version of this work (v0.3.0), with its documentation corrected. Read
 [CLAUDE.md](CLAUDE.md) first for the architecture, invariants and checks.
 
 ## The project and its owner's decisions
@@ -23,7 +23,7 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is release **v0.3.0**, the unified final version of this work. Every
+`main` is release **v0.3.1**: the unified final version of this work (v0.3.0), with its documentation corrected. Every
 release was merged with merge commits and tagged, and each tag published its
 notes from [CHANGELOG.md](CHANGELOG.md):
 - **v0.1.0** (PRs #4–#16): the foundation.
@@ -38,8 +38,10 @@ notes from [CHANGELOG.md](CHANGELOG.md):
     5.9
   - the frontend's Node floor, 22.22.2+
   - one canonical checkout outside iCloud
+- **v0.3.1** (#39 and its release PR): documentation and tooling corrections
+  found by a fresh-clone audit
 
-Nothing was pending at v0.3.0. Every Dependabot PR was merged or superseded:
+Nothing was pending at v0.3.0, or at v0.3.1. Every Dependabot PR was merged or superseded:
 #23–#26 by #29, and #31–#33 and #35 by #37. TypeScript 7 is skipped on
 purpose until `typescript-eslint` supports it; see `.github/dependabot.yml`.
 
