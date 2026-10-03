@@ -165,3 +165,12 @@ gh api repos/CommitedBit/audio-performance-generator --jq '{delete_branch_on_mer
   `git -c user.name=… -c user.email=…`.
 - **The GPU VM** is driven from the Mac with `DOCKER_CONTEXT=gpu`. See the
   README.
+- **The checkout lives under `~/Desktop`, which iCloud Drive syncs.** When git
+  rewrites files during a sync, iCloud keeps both versions and creates
+  conflict copies named `name 2.ext` across the tree (110 appeared at once
+  during the v0.1.1 merges). They are worse than clutter: pytest collects
+  `test_api 2.py` and runs stale tests. Move the repository out of iCloud
+  (for example to `~/dev/Story`), or turn off Desktop syncing.
+  - **To clean up:** `git status` lists the copies as untracked. Check that each
+    one's content is already in git (`git hash-object <file>`, then
+    `git cat-file -e <hash>`) before deleting it.

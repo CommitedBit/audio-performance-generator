@@ -186,6 +186,10 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
 - **On the owner's Mac, `/usr/bin/git` is blocked** by an unaccepted Xcode
   licence. `/Library/Developer/CommandLineTools/usr/bin/git` works; pushes
   authenticate through `gh`. Don't accept the licence on the owner's behalf.
+- **The Mac's checkout is under `~/Desktop`, which iCloud Drive syncs.** It
+  creates `name 2.ext` conflict copies when git rewrites files mid-sync, and
+  pytest then collects stale `test_* 2.py` files. Work outside iCloud; see
+  docs/git-workflow.md.
 - **No global git identity is set** on that Mac. Local git setup is
   described in docs/git-workflow.md, under "Local environment notes".
 - **The VM** is reached with `DOCKER_CONTEXT=gpu`. All ports bind to loopback
