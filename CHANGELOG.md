@@ -8,6 +8,13 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+### Fixed
+- **A running job no longer jumps to the top of `GET /v1/jobs`.** When the
+  oldest job was still running, the job list's cleanup moved it to the end of
+  the list, so it listed as the newest, and kept one job more than its limit.
+  Cleanup now drops the oldest *finished* jobs and leaves everything else in
+  place.
+
 ## [0.1.0] - 2026-10-03
 
 The first stable foundation. Merges PRs #4–#16.

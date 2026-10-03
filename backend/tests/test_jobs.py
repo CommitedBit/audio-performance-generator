@@ -127,3 +127,27 @@ async def test_eviction_never_drops_live_jobs():
     assert q.get(live.id) is live
     gate.set()
     await q.wait_for(live, timeout=5)
+
+
+async def test_eviction_keeps_order_and_bound_behind_a_live_job():
+    """A long job at the head of the list must neither move nor loosen the bound.
+
+    _evict used to re-append a live oldest job and stop: the running job jumped
+    to the top of GET /v1/jobs as if it were the newest, and one job more than
+    `retain` stayed in memory. The position cycles as jobs arrive, so the state
+    is checked after every submission, not just at the end.
+    """
+    q = JobQueue(max_concurrent=1, retain=3)
+    gate = threading.Event()
+    live = q.submit("music", _blocking(gate))
+    await _until(lambda: live.status is JobStatus.RUNNING)
+    for n in range(6):
+        job = q.submit("speech", lambda job: {"audio_id": "x"}, remote=True)
+        await q.wait_for(job, timeout=5)
+        listed = q.list(50)
+        created = [j["created_at"] for j in listed]
+        assert created == sorted(created, reverse=True), f"out of order after submission {n}"
+        assert len(q._jobs) <= 3, f"{len(q._jobs)} jobs kept after submission {n}; retain is 3"
+        assert listed[-1]["id"] == live.id                   # the live job is kept, as the oldest
+    gate.set()
+    await q.wait_for(live, timeout=5)
