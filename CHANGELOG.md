@@ -8,6 +8,29 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+### Added
+- **`docs/codex-kickoff.md`:** the kickoff prompt for a coding agent taking
+  over, versioned with the docs it points to.
+- **An "M2 GPU results" issue form,** so the owner's first GPU run arrives in
+  the shape the next steps need: version, topology, `report.txt`,
+  `results.json`, the idle-check pass, and listening notes.
+- **README:** a CI badge, and a "New here?" pointer to HANDOFF.md, AGENTS.md
+  and the kickoff prompt.
+
+### Fixed
+- **`scripts/check.sh --full` deleted all of `smoke-results/`,** including any
+  earlier GPU runs, which are not in git. It now removes only the run it
+  started.
+- **README:** the intro called ElevenLabs an "optional fallback". It's used
+  only when picked; it stands in automatically only if `ALLOW_CLOUD_DEFAULT=1`
+  opts in.
+- **Handoff docs:**
+  - AGENTS.md now lists the owner's jobs that agents never do: merging,
+    releases, repository settings and the GPU run.
+  - HANDOFF.md's "Start here" matches the kickoff prompt.
+  - HANDOFF.md and the README no longer name a version that goes stale.
+  - The M2 idle-check pass names `--split` for the split topology.
+
 ## [0.3.1] - 2026-10-03
 
 ### Changed

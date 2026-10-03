@@ -76,6 +76,8 @@ Every PR that changes behaviour adds a line under `## [Unreleased]` in
 
 ## Releases
 
+The owner cuts releases; agents never run these steps.
+
 1. **Bump the version.** On a `chore/release-X.Y.Z` branch, run
    `scripts/bump_version.py X.Y.Z`. It moves all five version fields and turns
    `[Unreleased]` into `[X.Y.Z] - <date>`. It refuses an empty `[Unreleased]`

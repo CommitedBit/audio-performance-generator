@@ -42,6 +42,11 @@ snapshots.
 
 - **Never force-push.** Never rewrite a branch someone else has pushed.
   Resolve conflicts with a merge, not a rebase.
+- **Leave the owner's jobs to the owner.** Open PRs and report CI. Never
+  merge, enable auto-merge, run `scripts/bump_version.py`, tag or publish a
+  release, change repository settings or branch protection, or run
+  `scripts/smoke_gpu.py` against the GPU VM. `main` requires no approvals, so
+  this rule is what keeps merging with the owner.
 - **One concern per PR, branched from `main`.** Follow
   [docs/git-workflow.md](docs/git-workflow.md): branch names, commits, merge
   commits, versioning and releases. Add a `CHANGELOG.md` `[Unreleased]` line

@@ -62,11 +62,21 @@ if [ "$FULL" = 1 ]; then
   fi
   run "contract snapshots"     python3 scripts/snapshot_contracts.py --check
   if [ "$HAVE_DOCKER" = 1 ]; then
+    # smoke-results/ may also hold the owner's GPU runs, which are not in git:
+    # note what is there now, so only this run's directory is removed after.
+    before=" $(ls smoke-results 2>/dev/null | tr '\n' ' ')"
     # No --quick, as in CI: the restart round is part of what this covers.
     run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev
     # The smoke run leaves the dev stack up; take it down either way.
     docker compose -f docker-compose.yml down >/dev/null 2>&1
-    rm -rf smoke-results
+    for d in smoke-results/*/; do
+      [ -d "$d" ] || continue
+      case "$before" in
+        *" $(basename "$d") "*) ;;
+        *) rm -rf "$d" ;;
+      esac
+    done
+    rmdir smoke-results 2>/dev/null || true
   else
     printf '\nskip  dev stack end to end: docker is not installed here (CI e2e runs it)\n'
   fi

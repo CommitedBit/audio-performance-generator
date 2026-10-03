@@ -1,11 +1,22 @@
 # Audio Performance Generator
 
+[![ci](https://github.com/CommitedBit/audio-performance-generator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/CommitedBit/audio-performance-generator/actions/workflows/ci.yml)
+
+> **New here?**
+> - [HANDOFF.md](HANDOFF.md): where the project stands and what comes next.
+> - [AGENTS.md](AGENTS.md): setup and the rules for anyone changing the
+>   code.
+> - [docs/codex-kickoff.md](docs/codex-kickoff.md): the ready-made first
+>   message, if you're handing the project to a coding agent.
+
 A local-first audio clip generator and timeline editor. Generate voice, sound
 effects and music from text, drop each result on a multi-track timeline, then
 trim and arrange it.
 
 Generation runs on **your own GPU**. ElevenLabs stays available as an optional
-fallback, but nothing requires it and no API key ever reaches the browser.
+cloud provider. It is used only when you pick it, never as an automatic
+fallback unless you opt in with `ALLOW_CLOUD_DEFAULT=1`, and its API key never
+reaches the browser.
 
 ## Where things run
 
@@ -340,8 +351,8 @@ it is uninterruptible, so `DELETE` returns `409` rather than pretending.
 
 ## Developing against the remote box
 
-The frontend needs Node 22.22.2 or newer (the floor is in `frontend/package.json`
-`engines`).
+The frontend needs Node 22.22.2+ on the 22 line, or 24.15+ / 26+ (the floor is
+in `frontend/package.json` `engines`).
 
 ```bash
 npm --prefix frontend install
@@ -353,7 +364,7 @@ Vite proxies `/api` there, matching what nginx does in the container, so
 
 ## Tests
 
-Set up once (Python 3.10+, Node 22.22.2+; see AGENTS.md):
+Set up once (Python 3.10+; Node 22.22.2+, 24.15+ or 26+; see AGENTS.md):
 
 ```bash
 scripts/bootstrap.sh
@@ -407,9 +418,10 @@ Voice cloning: only clone a voice you have permission to use.
 
 ## Status
 
-Version **0.3.1**: the unified final version of this work (0.3.0), with its documentation corrected. See
-[CHANGELOG.md](CHANGELOG.md) for what changed and [HANDOFF.md](HANDOFF.md)
-for the current state and what comes next.
+The current version is the newest section of [CHANGELOG.md](CHANGELOG.md).
+0.3.0 is the unified final version of this work; the 0.3.z releases after it
+correct and add documentation and tooling. [HANDOFF.md](HANDOFF.md) has the
+current state and what comes next.
 
 **Implemented and tested without a GPU:**
 - Generation for all three track types behind one provider interface.

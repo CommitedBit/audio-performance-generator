@@ -1,7 +1,8 @@
 # Handoff: state of the project and what comes next
 
-Written 2026-10-03, for release **v0.3.1**: the unified final version of this work (v0.3.0), with its documentation corrected. Read
-[CLAUDE.md](CLAUDE.md) first for the architecture, invariants and checks.
+Written 2026-10-03, at the unified final version of this work (v0.3.0) and
+the documentation releases after it. Read [CLAUDE.md](CLAUDE.md) first for the
+architecture, invariants and checks.
 
 ## The project and its owner's decisions
 
@@ -23,9 +24,11 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is release **v0.3.1**: the unified final version of this work (v0.3.0), with its documentation corrected. Every
-release was merged with merge commits and tagged, and each tag published its
-notes from [CHANGELOG.md](CHANGELOG.md):
+`main` is always the latest release; the newest section of
+[CHANGELOG.md](CHANGELOG.md) names it. v0.3.0 is the unified final version of
+this work, and the 0.3.z releases after it correct and add documentation and
+tooling. Every release was merged with merge commits and tagged, and each tag
+published its notes from the CHANGELOG:
 - **v0.1.0** (PRs #4–#16): the foundation.
 - **v0.1.1** (#17–#20): the fixes found at hand-off.
 - **v0.2.0** (#21, #22, #27–#30, #36):
@@ -40,8 +43,14 @@ notes from [CHANGELOG.md](CHANGELOG.md):
   - one canonical checkout outside iCloud
 - **v0.3.1** (#39 and its release PR): documentation and tooling corrections
   found by a fresh-clone audit
+- **v0.3.2** (#41 and its release PR):
+  - the Codex kickoff prompt, [docs/codex-kickoff.md](docs/codex-kickoff.md)
+  - the "M2 GPU results" issue form
+  - the README's "New here?" pointers
+  - `scripts/check.sh --full` no longer deletes earlier smoke results
 
-Nothing was pending at v0.3.0, or at v0.3.1. Every Dependabot PR was merged or superseded:
+Nothing was pending at v0.3.0 or at any release since. Every Dependabot PR was
+merged or superseded:
 #23–#26 by #29, and #31–#33 and #35 by #37. TypeScript 7 is skipped on
 purpose until `typescript-eslint` supports it; see `.github/dependabot.yml`.
 
@@ -50,7 +59,8 @@ New work branches from `main` and follows
 - one concern per PR
 - CI must pass
 - a CHANGELOG line for every behaviour change
-- versions move only through `scripts/bump_version.py`
+- versions move only through `scripts/bump_version.py`, which the owner runs
+  when cutting a release
 
 The PRs that make up v0.1.0:
 
@@ -75,25 +85,34 @@ The PRs that make up v0.1.0:
   and force-pushes and deletion are blocked.
 - Merged branches are deleted automatically.
 
-**The owner merges.** Agents open PRs and report CI. A previous agent's
-attempt to merge was blocked as "merge without review".
+**The owner merges and cuts releases.** Agents open PRs and report CI; they
+never merge, enable auto-merge, run `scripts/bump_version.py`, tag, or change
+repository settings. `main` requires no approvals, so branch protection will
+not stop an agent's merge; this rule does.
 
 ## Start here (Codex)
 
-1. **Set up and check.** You need Node 22.22.2+ and Python 3.10+. Run
-   `scripts/bootstrap.sh`, then `scripts/check.sh`; everything should pass. AGENTS.md lists which checks need network, Docker
-   or the GPU VM; anything you cannot run, say so in the PR.
+The ready-made first message for a coding agent is in
+[docs/codex-kickoff.md](docs/codex-kickoff.md).
+
+1. **Set up and check.** You need Node 22.22.2+ (or 24.15+ / 26+) and Python
+   3.10+. Run `scripts/bootstrap.sh`, then `scripts/check.sh`; everything
+   should pass. AGENTS.md lists which checks need network, Docker or the GPU
+   VM; anything you cannot run, say so in the PR.
 2. **Review before changing anything.** Follow the review priorities below:
    #12 (the playback engine) first, then #10 (the contract-test machinery).
-   Report findings with evidence.
-3. **Foundation work that needs no GPU,** from the backlog below, one PR each:
-   - job state that survives a restart
-   - retention for generated audio
-   - a Python lock file
+   Report findings with evidence, then wait for the owner before step 3.
+3. **Foundation work that needs no GPU,** from the backlog below. One PR at a
+   time, in this order, each started only after the owner merges the last:
+   - job records that survive a restart
+   - opt-in retention for generated audio
+   - a lock for the backend's base and dev dependencies
    - frontend types generated from OpenAPI
+   - opt-in structured logging (`LOG_FORMAT=json`)
 4. **Leave GPU-dependent work** (M3 sizing and VRAM-aware loading) until the
    owner has run `scripts/smoke_gpu.py` on the VM. The owner posts that run's
-   `report.txt` and `results.json` in a GitHub issue titled **"M2 results"**;
+   `report.txt` and `results.json` in a GitHub issue titled **"M2 results"**,
+   using the "M2 GPU results" issue template;
    `smoke-results/` is gitignored, so the issue is where they live. Start M3
    only from that issue. Beyond Start here and the backlog below, take on
    GPU-free parts of M4/M5 only with the owner's go-ahead.
@@ -175,7 +194,8 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
   post `smoke-results/<timestamp>/report.txt` and `results.json` in a GitHub
   issue titled "M2 results". Its cold, warm and load timings and its VRAM
   peaks drive M3. It may also force the split topology (`--split`). Then
-  confirm that idle unloading frees VRAM with a second pass:
+  confirm that idle unloading frees VRAM with a second pass on the same
+  topology (add `--split` if the first run used it):
   `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --no-build --quick --idle-check`.
 - **M3. Hardware tuning [GPU]:**
   - **Ollama:** add it as a compose `llm` profile, hidden from the GPU: no
@@ -217,7 +237,9 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
 - **Foundation gaps outside the plan:**
   - The job queue lives in memory, so a restart loses job state.
   - No retention or cleanup for generated audio.
-  - No Python lockfile (`uv lock`).
+  - No Python lockfile. It should cover the base and dev dependencies only:
+    the model extras' pins conflict, and a plain `uv lock` would try to
+    resolve them together.
   - Frontend types are not generated from OpenAPI.
   - No structured logging or metrics.
 
@@ -230,7 +252,8 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
   `name 2.ext` conflict copies that pytest then collected. Use `~/dev/Story`;
   the Desktop copy is only kept until the owner removes it.
 - **A fresh checkout is set up by `scripts/bootstrap.sh`.** It needs Node
-  22.22.2+. The Mac's Node was 22.11 at hand-off: upgrade it first.
+  22.22.2+ (or 24.15+ / 26+). The Mac's Node was 22.11 at hand-off: upgrade it
+  first.
 - **No global git identity is set** on that Mac. Local git setup is
   described in docs/git-workflow.md, under "Local environment notes".
 - **The VM** is reached with `DOCKER_CONTEXT=gpu`. All ports bind to loopback
@@ -246,7 +269,8 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
    - create `.env` from `.env.example` and set `HF_TOKEN`
    - accept the Stable Audio 3 licence on Hugging Face
    - run M2 (above)
-   - post the results in an "M2 results" issue
+   - post the results in an "M2 results" issue (New issue → "M2 GPU results").
+     `smoke-results/` is not in git, so keep your own copy of the clips.
 3. **Delete `~/Desktop/Story`** once `~/dev/Story` checks out.
 4. **Decide two repository settings** (docs/git-workflow.md,
    "Repository settings"): turn on Dependabot security alerts, and protect
