@@ -19,9 +19,56 @@ def _wav_info(data: bytes) -> tuple[int, int, float]:
 
 def test_health_reports_jobs_and_providers(api):
     body = api.get("/health").json()
-    assert body["status"] == "ok"
-    assert body["providers_available"] >= 3       # the dev stubs
+    assert body["status"] == "stub"                # placeholders only: not "ok"
+    assert body["providers_available"] >= 3
+    assert {c: s["status"] for c, s in body["capabilities"].items()} == {
+        "voice": "stub", "music": "stub", "sfx": "stub"}
     assert body["jobs"]["max_concurrent"] == 1
+
+
+def test_health_judges_each_capability_and_only_local_models_count(api, use_providers):
+    use_providers(
+        FakeProvider("chatterbox", Capability.VOICE, is_available=False),
+        FakeProvider("elevenlabs-voice", Capability.VOICE, remote=True),
+        FakeProvider("acestep", Capability.MUSIC),
+        FakeProvider("stable-audio-3-sfx", Capability.SFX, is_available=False),
+    )
+    body = api.get("/health").json()
+    assert body["status"] == "degraded"
+    assert body["capabilities"] == {
+        "voice": {"status": "cloud", "available": ["elevenlabs-voice"]},
+        "music": {"status": "ok", "available": ["acestep"]},
+        "sfx": {"status": "down", "available": []},
+    }
+
+
+def test_health_covers_only_the_capabilities_a_service_hosts(api, use_providers):
+    use_providers(FakeProvider("acestep", Capability.MUSIC))      # the split `music` service
+    body = api.get("/health").json()
+    assert body["status"] == "ok"
+    assert list(body["capabilities"]) == ["music"]
+
+
+def test_health_is_down_when_nothing_can_generate(api, use_providers):
+    use_providers(FakeProvider("chatterbox", Capability.VOICE, is_available=False))
+    r = api.get("/health")
+    assert r.status_code == 200                    # liveness stays 200
+    assert r.json()["status"] == "down"
+
+
+def test_startup_logs_each_capability_that_cannot_run(use_providers, caplog):
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    use_providers(
+        FakeProvider("chatterbox", Capability.VOICE, is_available=False),
+        FakeProvider("acestep", Capability.MUSIC),
+    )
+    with caplog.at_level("WARNING"), TestClient(main.app):
+        pass
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    assert errors == ["voice has NO available provider: chatterbox: disabled by the test"]
 
 
 def test_models_lists_stubs_with_defaults_in_dev_mode(api):

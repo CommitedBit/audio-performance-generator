@@ -75,9 +75,26 @@ class VoiceRef(BaseModel):
     created_at: float
 
 
+class CapabilityHealth(BaseModel):
+    # ok: a local model can serve it; cloud: only a cloud provider; stub: only
+    # a placeholder (dev); down: nothing.
+    status: Literal["ok", "cloud", "stub", "down"]
+    available: list[str]
+
+
+class RequiredHealth(BaseModel):
+    status: Literal["ok", "unavailable", "missing"]
+    reason: str = ""
+
+
 class HealthResponse(BaseModel):
-    status: Literal["ok", "loading", "degraded"]
+    """Liveness plus detail. Always HTTP 200: readiness is /health/ready."""
+    status: Literal["ok", "stub", "degraded", "down"]
     device: str
     providers_available: int
     providers_total: int
+    capabilities: dict[str, CapabilityHealth]
     gpu: dict[str, Any] | None = None
+    jobs: dict[str, Any] | None = None                 # model services only
+    upstreams: dict[str, str] | None = None            # gateway only
+    required: dict[str, RequiredHealth] | None = None  # gateway only

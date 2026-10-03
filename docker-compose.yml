@@ -21,6 +21,8 @@ services:
     command: ["python", "-m", "uvicorn", "app.gateway:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       UPSTREAMS: stub=http://stub:8000
+      # The dev stack runs placeholders only; "ready" means they are up.
+      REQUIRED_PROVIDERS: stub-voice,stub-music,stub-sfx
       DATA_DIR: /data
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
       # Must be set HERE, not only on nginx: the gateway enforces the key, and

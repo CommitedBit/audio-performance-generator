@@ -140,5 +140,7 @@ def test_info_shape(use_providers):
     p = FakeProvider("p", Capability.SFX, seconds_range=(1, 9))
     info = p.info()
     assert info["capability"] == "sfx"
+    assert info["remote"] is False
+    assert FakeProvider("c", remote=True).info()["remote"] is True
     assert info["params"][0] == {"name": "seconds", "type": "float", "default": 1, "minimum": 1,
                                  "maximum": 9, "description": "Clip length"}

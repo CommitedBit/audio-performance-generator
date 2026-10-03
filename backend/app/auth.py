@@ -21,7 +21,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 # Probes and CORS preflight must work without a key.
-OPEN_PATHS = frozenset({"/health", "/docs", "/openapi.json", "/redoc"})
+OPEN_PATHS = frozenset({"/health", "/health/ready", "/docs", "/openapi.json", "/redoc"})
 
 
 async def api_key_middleware(request: Request, call_next):

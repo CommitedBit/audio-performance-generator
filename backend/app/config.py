@@ -51,6 +51,12 @@ class Settings:
         # advertised by /v1/models.
         self.elevenlabs_api_key: str | None = os.getenv("ELEVENLABS_API_KEY") or None
 
+        # Whether a cloud provider may be picked AUTOMATICALLY when a request
+        # names none. Off: a local model failing to load must not silently
+        # route story text to a paid third-party API. Cloud providers stay
+        # usable when chosen explicitly.
+        self.allow_cloud_default: bool = _bool("ALLOW_CLOUD_DEFAULT", False)
+
         # A single GPU cannot safely run two diffusion/TTS models at once, so
         # generation is serialised. Raise only if you know your VRAM allows it.
         self.max_concurrent_jobs: int = int(os.getenv("MAX_CONCURRENT_JOBS", "1"))

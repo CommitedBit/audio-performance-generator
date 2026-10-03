@@ -44,12 +44,16 @@ export default function GenerationPanel() {
   const usable = useMemo(() => providers.filter(p => p.available), [providers]);
 
   // Follow the server's default whenever the capability changes, rather than
-  // pinning a provider the UI happens to have listed first.
+  // pinning a provider the UI happens to have listed first. Never fall back to
+  // a cloud provider on our own: the server deliberately has no default when
+  // only cloud can serve, so sending text out stays an explicit choice.
   useEffect(() => {
     const preferred = models?.defaults?.[capability] ?? '';
     const stillValid = usable.some(p => p.id === providerId);
-    if (!stillValid) setProviderId(preferred || usable[0]?.id || '');
+    if (!stillValid) setProviderId(preferred || usable.find(p => !p.remote)?.id || '');
   }, [capability, models, usable, providerId]);
+
+  const onlyCloud = usable.length > 0 && usable.every(p => p.remote);
 
   const provider: ProviderInfo | undefined = useMemo(
     () => providers.find(p => p.id === providerId),
@@ -197,9 +201,15 @@ export default function GenerationPanel() {
         <label>
           Model
           <select value={providerId} onChange={e => setProviderId(e.target.value)} disabled={busy}>
+            {providerId === '' && providers.length > 0 && (
+              <option value="" disabled>
+                Choose a model…
+              </option>
+            )}
             {providers.map(p => (
               <option key={p.id} value={p.id} disabled={!p.available}>
                 {p.name}
+                {p.remote ? ' (cloud)' : ''}
                 {p.available ? '' : ' — unavailable'}
               </option>
             ))}
@@ -242,6 +252,13 @@ export default function GenerationPanel() {
           {busy ? 'Generating…' : `Generate ${active.label}`}
         </button>
       </div>
+
+      {onlyCloud && providerId === '' && (
+        <p className="warn">
+          No local model can generate {active.label.toLowerCase()} right now. A cloud model is
+          available, but choosing it sends your text to that service.
+        </p>
+      )}
 
       {provider && !provider.available && (
         <p className="warn">
