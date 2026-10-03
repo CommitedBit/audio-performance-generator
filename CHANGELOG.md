@@ -9,6 +9,14 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 ## [Unreleased]
 
 ### Fixed
+- **A running job reports its phase:**
+  - loading `<model>`, which happens on a first load and can take minutes
+  - generating
+  - saving
+
+  The generation panel shows the phase and the elapsed time. Before, a job
+  read "generating" from before its model even started loading, and its
+  progress jumped from 0 to 1 at the end.
 - **MP3 audio from ElevenLabs reports its real length.** Only WAV was measured
   server-side, so ElevenLabs speech reported 0 s and sfx the length it was
   asked for. MP3 is now measured from its frames (stdlib, no new dependency).

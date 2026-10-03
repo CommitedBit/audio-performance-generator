@@ -113,27 +113,15 @@ attempt to merge was blocked as "merge without review".
    - `storage._safe` path validation
    - the ElevenLabs key staying server-side
    - ports bound to loopback, and nginx not injecting the key
-6. **Known bugs, scheduled for v0.1.1.** Claude fixes these right after
-   v0.1.0, test-first, one PR each. Check `main` and the CHANGELOG before
-   starting one. Until then they are open:
-   - **ElevenLabs lengths are wrong in the API.** ElevenLabs returns mp3, and
-     only WAV duration is measured server-side:
-     - `ElevenLabsVoice` reports `duration=0.0`, and `ElevenLabsSfx` reports
-       the *requested* length.
-     - The timeline is unaffected, because the generation panel decodes the
-       audio when the length is 0 (`GenerationPanel.tsx` around line 133).
-     - Any other API consumer gets the wrong value. That includes the planned
-       director, which lays out lines by their measured length.
+6. **Bugs found at hand-off, now fixed** (CHANGELOG `[Unreleased]`, released
+   as v0.1.1):
+   - ElevenLabs mp3 lengths are now measured.
+   - The job list keeps its order.
+   - Jobs report their phase.
 
-     Measure mp3 duration server-side.
-   - **Eviction reorders the job list.** In `JobQueue._evict`, when the oldest
-     job is still live it is moved to the end of the order and eviction stops.
-     That reorders `GET /v1/jobs` and can stop eviction early.
-   - **Providers never report progress.** `job.progress` jumps from 0 to 1, so
-     the UI can't show anything for minutes-long music jobs. The v0.1.1 fix
-     reports honest phases plus elapsed time. Step-level progress from inside
-     the models needs hooks into their libraries that can only be verified on
-     the GPU, so it stays an M3 follow-up.
+   Still open: step-level progress from *inside* a model run. It needs hooks
+   into ACE-Step, Stable Audio 3 and Chatterbox that can only be verified on
+   the GPU, so it belongs to M3.
 
 ## Foundational backlog, in plan order
 

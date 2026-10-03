@@ -8,6 +8,7 @@ import {
 } from '../api/client';
 import { allFor, useModels } from '../hooks/useModels';
 import { saveBlob } from '../hooks/useIndexedAudio';
+import { formatElapsed } from '../lib/format';
 import useProjectStore, { trackIdForType } from '../store/useProjectStore';
 
 const CAPABILITIES: { id: Capability; label: string; placeholder: string }[] = [
@@ -35,6 +36,15 @@ export default function GenerationPanel() {
   const [seconds, setSeconds] = useState<number>(8);
   const [job, setJob] = useState<JobInfo | null>(null);
   const [busy, setBusy] = useState(false);
+  // Wall-clock time since Generate was pressed, ticking while busy: a first
+  // model load can take minutes, and a silent spinner looks hung.
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!busy) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -107,6 +117,8 @@ export default function GenerationPanel() {
 
     const ac = new AbortController();
     abortRef.current = ac;
+    setStartedAt(Date.now());
+    setNow(Date.now());
     setBusy(true);
     setError(null);
     setJob(null);
@@ -273,6 +285,7 @@ export default function GenerationPanel() {
           {job.status}
           {job.queue_position ? ` (queued behind ${job.queue_position})` : ''}
           {job.message ? ` — ${job.message}` : ''}
+          {busy && startedAt !== null ? ` · ${formatElapsed((now - startedAt) / 1000)}` : ''}
         </p>
       )}
 
