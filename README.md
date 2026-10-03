@@ -407,7 +407,7 @@ Voice cloning: only clone a voice you have permission to use.
 
 ## Status
 
-Version **0.3.0**: the unified final version of this work. See
+Version **0.3.1**: the unified final version of this work (0.3.0), with its documentation corrected. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and [HANDOFF.md](HANDOFF.md)
 for the current state and what comes next.
 
