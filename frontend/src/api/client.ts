@@ -349,13 +349,25 @@ export async function waitForJob(
   return current;
 }
 
-/** Fetch the finished audio so it can be cached locally and decoded. */
-export async function fetchAudio(job: JobInfo): Promise<Blob> {
-  if (!job.audio_url) throw new ApiError(500, 'job finished without producing audio');
-  const res = await fetch(`${API_BASE}${job.audio_url}`, withAuth());
+async function getAudio(path: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}${path}`, withAuth());
   if (res.status === 401) throw authError();
   if (!res.ok) throw new ApiError(res.status, `could not fetch audio: ${res.statusText}`);
   return await res.blob();
+}
+
+/** Fetch the finished audio so it can be cached locally and decoded. */
+export async function fetchAudio(job: JobInfo): Promise<Blob> {
+  if (!job.audio_url) throw new ApiError(500, 'job finished without producing audio');
+  return getAudio(job.audio_url);
+}
+
+/**
+ * A clip's audio by the server's id for it. The browser's IndexedDB copy is
+ * only a cache, and this is where the audio comes back from once it is gone.
+ */
+export function fetchAudioById(audioId: string): Promise<Blob> {
+  return getAudio(`/v1/audio/${audioId}`);
 }
 
 /**
