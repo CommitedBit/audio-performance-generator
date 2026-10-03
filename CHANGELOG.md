@@ -45,7 +45,7 @@ The first stable foundation. Merges PRs #4–#16.
 - **Clips gain new fields:** `sourceDuration`, `label`, `gain`, `fadeIn`,
   `fadeOut` and `audioId`. Missing cached audio is re-fetched from the
   server. #12
-- **A test suite and CI:** backend pytest (140 tests), frontend vitest (91),
+- **A test suite and CI:** backend pytest (150 tests), frontend vitest (91),
   dependency resolution, the dev stack end to end, and compose validation,
   run on every pull request. #5, #8, #9, #11
 - **Project documentation:**
@@ -73,6 +73,9 @@ The first stable foundation. Merges PRs #4–#16.
 - **Stable Audio 3 checkpoints stalled each other's loads and unloads.** #6
 - **Stable Audio 3's diffusers fallback crashed on every generation:** it
   passed `audio_end_in_s=` where diffusers 0.40 expects `duration=`. #10
+- **`scripts/check_deps.py` blamed the pins for a network outage.** It
+  reported an unreachable package index as "the image would build a package
+  from source". It now retries, and then says the index was unreachable. #16
 - **The API client:**
   - one failed poll failed a whole generation
   - an abort was reported as "server unreachable"

@@ -60,7 +60,7 @@ attempt to merge was blocked as "merge without review".
 
 ## What is verified
 
-- **Backend:** 146 pytest tests, no GPU or torch needed. They cover the API end
+- **Backend:** 150 pytest tests, no GPU or torch needed. They cover the API end
   to end through the job queue, gateway routing and readiness, provider
   lifecycle and lock behaviour, the job lanes, the RNG lock, cross-process GPU
   slots, the ElevenLabs credential gate, the Stable Audio 3 shared pipeline,
