@@ -108,5 +108,9 @@ and the GPU run.
 - **`curl localhost` inside a container can resolve to `::1`** while uvicorn
   listens on IPv4. Use `127.0.0.1`.
 - **Keep evidence out of `/tmp`.** It disappears, and so does the proof.
+- **Node below 22.22.2 breaks the frontend without saying why.** npm silently
+  skips rolldown's native binding (an optional dependency whose engines do
+  not match), and vite then fails with "Cannot find module
+  @rolldown/binding-...". `scripts/bootstrap.sh` checks the version.
 - **A file list without a trailing newline** loses its last line in
   `while read` loops.

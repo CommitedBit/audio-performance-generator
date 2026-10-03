@@ -163,14 +163,16 @@ gh api repos/CommitedBit/audio-performance-generator --jq '{delete_branch_on_mer
 - **No global git identity is set.** Set `user.name` and `user.email` before
   committing locally, or pass them per command with
   `git -c user.name=… -c user.email=…`.
+- **Node 22.22.2+ for the frontend.** On older Node, npm silently skips
+  vite's native rolldown binding, and every frontend command fails;
+  `scripts/bootstrap.sh` checks for this.
 - **The GPU VM** is driven from the Mac with `DOCKER_CONTEXT=gpu`. See the
   README.
-- **The checkout lives under `~/Desktop`, which iCloud Drive syncs.** When git
-  rewrites files during a sync, iCloud keeps both versions and creates
-  conflict copies named `name 2.ext` across the tree (110 appeared at once
-  during the v0.1.1 merges). They are worse than clutter: pytest collects
-  `test_api 2.py` and runs stale tests. Move the repository out of iCloud
-  (for example to `~/dev/Story`), or turn off Desktop syncing.
+- **Work in `~/dev/Story`, outside iCloud.** The first checkout lived under
+  `~/Desktop`, which iCloud Drive syncs. When git rewrote files during a
+  sync, iCloud kept both versions as `name 2.ext` conflict copies (110 at
+  once during the v0.1.1 merges), and pytest collected `test_api 2.py` and
+  ran stale tests. Keep any checkout out of iCloud-synced folders.
   - **To clean up:** `git status` lists the copies as untracked. Check that each
     one's content is already in git (`git hash-object <file>`, then
     `git cat-file -e <hash>`) before deleting it.

@@ -1,6 +1,6 @@
 # Handoff: state of the project and what comes next
 
-Written 2026-10-03, for release **v0.2.0**: the foundation (v0.1.x) plus the tooling an agent needs to take over. Read
+Written 2026-10-03, for release **v0.3.0**: the unified final version of this work. Read
 [CLAUDE.md](CLAUDE.md) first for the architecture, invariants and checks.
 
 ## The project and its owner's decisions
@@ -23,32 +23,27 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is release **v0.2.0**. All three releases were merged with merge
-commits and tagged:
+`main` is release **v0.3.0**, the unified final version of this work. Every
+release was merged with merge commits and tagged, and each tag published its
+notes from [CHANGELOG.md](CHANGELOG.md):
 - **v0.1.0** (PRs #4–#16): the foundation.
 - **v0.1.1** (#17–#20): the fixes found at hand-off.
-- **v0.2.0** (#21, #22, #27–#30 and the release PR):
+- **v0.2.0** (#21, #22, #27–#30, #36):
   - `smoke_gpu.py --idle-check`
   - CI covers the restart round
   - the frontend toolchain on ESLint 10, react-hooks 7 and vitest 5
   - `scripts/bootstrap.sh`
-  - the iCloud note
+- **v0.3.0** (#34, #37 and its release PR):
+  - Vite 8, `@vitejs/plugin-react` 6, jsdom 30, globals 17 and TypeScript
+    5.9
+  - the frontend's Node floor, 22.22.2+
+  - one canonical checkout outside iCloud
 
-  Dependabot's first queue was cleared: #21 and #22 were merged, and #23–#26
-  were superseded by #29.
+Nothing was pending at v0.3.0. Every Dependabot PR was merged or superseded:
+#23–#26 by #29, and #31–#33 and #35 by #37. TypeScript 7 is skipped on
+purpose until `typescript-eslint` supports it; see `.github/dependabot.yml`.
 
-**Open at hand-off: Dependabot's major-version PRs** (#31–#35). These are
-deliberately left for the next version. Each is a real migration, not a
-lockfile bump:
-- vite 8 and `@vitejs/plugin-react` 6, which must move together; treat them
-  like #29 did ESLint
-- jsdom 30
-- globals 17
-- TypeScript 7, the compiler rewrite
-
-Take them one PR per toolchain, with `scripts/check.sh` as the gate. Close
-whatever the grouped PR supersedes. The tag publishes the release notes from
-[CHANGELOG.md](CHANGELOG.md). New work branches from `main` and follows
+New work branches from `main` and follows
 [docs/git-workflow.md](docs/git-workflow.md):
 - one concern per PR
 - CI must pass
@@ -83,8 +78,8 @@ attempt to merge was blocked as "merge without review".
 
 ## Start here (Codex)
 
-1. **Set up and check.** Run `scripts/bootstrap.sh`, then `scripts/check.sh`;
-   everything should pass. AGENTS.md lists which checks need network, Docker
+1. **Set up and check.** You need Node 22.22.2+ and Python 3.10+. Run
+   `scripts/bootstrap.sh`, then `scripts/check.sh`; everything should pass. AGENTS.md lists which checks need network, Docker
    or the GPU VM; anything you cannot run, say so in the PR.
 2. **Review before changing anything.** Follow the review priorities below:
    #12 (the playback engine) first, then #10 (the contract-test machinery).
@@ -225,11 +220,12 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
 - **On the owner's Mac, `/usr/bin/git` is blocked** by an unaccepted Xcode
   licence. `/Library/Developer/CommandLineTools/usr/bin/git` works; pushes
   authenticate through `gh`. Don't accept the licence on the owner's behalf.
-- **The Mac's checkout is under `~/Desktop`, which iCloud Drive syncs.** It
-  creates `name 2.ext` conflict copies when git rewrites files mid-sync, and
-  pytest then collects stale `test_* 2.py` files. Work outside iCloud; see
-  docs/git-workflow.md.
-- **A fresh checkout is set up by `scripts/bootstrap.sh`.**
+- **The canonical checkout is `~/dev/Story`, outside iCloud.** The earlier
+  one, `~/Desktop/Story`, was iCloud-synced, and mid-sync git rewrites left
+  `name 2.ext` conflict copies that pytest then collected. Use `~/dev/Story`;
+  the Desktop copy is only kept until the owner removes it.
+- **A fresh checkout is set up by `scripts/bootstrap.sh`.** It needs Node
+  22.22.2+. The Mac's Node was 22.11 at hand-off: upgrade it first.
 - **No global git identity is set** on that Mac. Local git setup is
   described in docs/git-workflow.md, under "Local environment notes".
 - **The VM** is reached with `DOCKER_CONTEXT=gpu`. All ports bind to loopback
