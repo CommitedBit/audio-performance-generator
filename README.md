@@ -340,6 +340,9 @@ it is uninterruptible, so `DELETE` returns `409` rather than pretending.
 
 ## Developing against the remote box
 
+The frontend needs Node 22.22.2 or newer (`.nvmrc`; `frontend/package.json`
+`engines`).
+
 ```bash
 npm --prefix frontend install
 VITE_API_TARGET=http://<gpu-vm-ip>:8000 npm --prefix frontend run dev
@@ -404,7 +407,7 @@ Voice cloning: only clone a voice you have permission to use.
 
 ## Status
 
-Version **0.2.0**: the foundation (0.1.x) plus the tooling an agent needs to take over. See
+Version **0.3.0**: the unified final version of this work. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and [HANDOFF.md](HANDOFF.md)
 for the current state and what comes next.
 

@@ -1,4 +1,4 @@
-> **Status (2026-10-03):** M0–M2 tooling and all M1 PRs are done (PRs #4–#14; see HANDOFF.md). The GPU run (M2) and M3–M5 remain. Step-by-step details below are as originally approved; HANDOFF.md is the current state.
+> **Status (v0.3.0, 2026-10-03):** M0 and M1 are done. M2's tooling is ready (`scripts/smoke_gpu.py`, `--idle-check`), but the GPU run itself is still pending. M3–M5 remain. The details below are as originally approved; HANDOFF.md is the current state.
 
 # Plan: make the repo safe for agents, then add a local-LLM director
 
