@@ -49,6 +49,18 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  deps:
+    # Resolves each GPU image's dependency set as the Dockerfile installs it,
+    # wheel-only, for the GPU box's platform -- a broken pin or a package the
+    # box would have to compile fails here instead of mid-build on the VM.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.29"              # same uv as the image
+      - run: python3 scripts/check_deps.py
+
   compose:
     runs-on: ubuntu-24.04
     steps:

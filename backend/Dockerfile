@@ -15,7 +15,9 @@ ARG BASE=cpu
 # CUDA_TAG must be >= 12.8 for Blackwell / RTX 50-series (sm_120). CUDA 12.4 and
 # earlier carry no sm_120 kernels and fail at runtime with
 # "no kernel image is available for execution on the device".
-ARG CUDA_TAG=13.0.2-cudnn-runtime-ubuntu24.04
+# Defaults match compose, so a bare `docker build --build-arg BASE=cuda` gets
+# the same toolchain the stack is tested against (scripts/check_deps.py).
+ARG CUDA_TAG=12.8.1-cudnn-runtime-ubuntu24.04
 
 FROM debian:bookworm-slim AS cpu-base
 ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
@@ -23,7 +25,7 @@ ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 FROM nvidia/cuda:${CUDA_TAG} AS cuda-base
 # Must be a Blackwell-capable index. cu128 is the FIRST one carrying sm_120 and
 # it starts at torch 2.7.0; cu126 and older are Blackwell-dead.
-ARG TORCH_INDEX=cu130
+ARG TORCH_INDEX=cu128
 ENV TORCH_INDEX_URL=https://download.pytorch.org/whl/${TORCH_INDEX}
 
 FROM ${BASE}-base AS runtime
@@ -45,7 +47,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg libsndfile1 curl ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Pinned: a new uv can change resolution, and :latest made rebuilds of the same
+# commit non-reproducible.
+COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /usr/local/bin/uv
 
 # Chatterbox is the reason this is a knob. chatterbox-tts 0.1.7 hard-pins
 # torch==2.6.0 on Python < 3.14 -- and torch 2.6.0 has no wheel on ANY

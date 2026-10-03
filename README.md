@@ -97,6 +97,19 @@ source. One torch (2.7.1+cu128, which ships sm_120) serves all three, so this is
 
 ### Validating the unified environment
 
+Before building, check that every GPU image's dependency set still resolves.
+This needs no GPU and takes seconds:
+
+```bash
+python3 scripts/check_deps.py
+```
+
+It reads the build args from the compose files and resolves each set the way
+the Dockerfile installs it (torch pins as overrides, Python 3.12, x86_64
+manylinux), then again wheel-only. The two results must match. If they don't,
+some package would have to be compiled on the GPU box. CI runs this on every
+pull request.
+
 After first boot, generate one clip per track type and listen to it:
 
 ```bash

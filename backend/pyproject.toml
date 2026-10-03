@@ -53,13 +53,9 @@ flash = ["flash-attn>=2.6"]
 #     reason requirements-models.txt exists.
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
 
-# Pin the CUDA wheel index explicitly. Without this you can silently install
-# the default torch wheel, which bundles its own full copy of CUDA -- two
-# toolchains in one image and several wasted GB.
-[[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
-explicit = true
+# No torch index here on purpose: the CUDA index is chosen per image by the
+# Dockerfile's TORCH_INDEX build arg (cu128 for Blackwell). A cu124 entry used
+# to sit here; cu124 has no sm_120 kernels.
 
 [tool.ruff]
 line-length = 110
