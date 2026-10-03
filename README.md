@@ -234,10 +234,22 @@ VITE_API_TARGET=http://<gpu-vm-ip>:8000 npm --prefix frontend run dev
 Vite proxies `/api` there, matching what nginx does in the container, so
 `VITE_API_BASE` stays `/api` in both and CORS never arises.
 
+## Tests
+
+```bash
+cd backend && uv pip install -e ".[dev]" && ruff check app tests && pytest
+```
+
+No GPU, torch or weights needed: providers are faked, the gateway talks to fake
+upstreams, and the GPU-slot tests use real subprocesses. CI
+(`.github/workflows/ci.yml`) runs this plus the frontend lint/build and a
+`docker compose config` of every topology, on every pull request.
+
 ## Adding a model
 
 Subclass `Provider` in `backend/app/providers/`, implement `_load()` and
-`generate()`, register it in `backend/app/registry.py`. Declare its `license`
+`generate()`, register it in `backend/app/registry.py`, and add tests beside
+the existing ones in `backend/tests/`. Declare its `license`
 accurately — it is shown in the UI. Add its runtime deps to
 `requirements-models.txt` and its install spec to the `MODELS` build arg.
 
