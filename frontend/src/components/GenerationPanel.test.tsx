@@ -87,7 +87,10 @@ function doneServer() {
   vi.stubGlobal('fetch', async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const call = `${init.method ?? 'GET'} ${String(input)}`;
     if (call === 'GET /api/v1/models') return json(MODELS);
-    if (call === 'GET /api/v1/audio/a1') return new Response(new Blob(['RIFF']));
+    // A string body, not a Blob: Node's Response reads a Blob through .stream(),
+    // which jsdom 30's Blob lacks. Browsers' Blobs have it, and the app only
+    // ever receives Blobs from fetch, so this is a fixture concern alone.
+    if (call === 'GET /api/v1/audio/a1') return new Response('RIFF');
     return json(done);
   });
 }

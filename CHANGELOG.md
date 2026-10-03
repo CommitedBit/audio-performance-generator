@@ -8,6 +8,23 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+### Changed
+- **The frontend build moves to Vite 8** with `@vitejs/plugin-react` 6, which
+  are upgraded together, as neither installs without the other. Vite 8
+  bundles with rolldown.
+- **The frontend tests move to jsdom 30.** One test fixture changed: it built
+  a fetch `Response` from a jsdom `Blob`, which jsdom 30 no longer supports.
+  The app code is unaffected.
+- **TypeScript moves to 5.9 and stays on 5.x.** TypeScript 7 is blocked:
+  `typescript-eslint`, even the newest release, accepts only TypeScript below
+  6.1. Dependabot now skips TypeScript majors, with that reason in its
+  config. Supersedes #31, #32, #33 and #35; #34 (globals 17) merged as is.
+- **The frontend needs Node 22.22.2+** (or 24.15+ / 26+), declared in
+  `frontend/package.json` `engines` and `.nvmrc`, and checked by
+  `scripts/bootstrap.sh`. On older Node, npm silently skips rolldown's
+  native binding, and every frontend command then fails. CI and the Docker
+  image already use the current Node 22.
+
 ## [0.2.0] - 2026-10-03
 
 ### Changed

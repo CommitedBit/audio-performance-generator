@@ -20,6 +20,16 @@ need python3 "install Python 3.10+ (the images use 3.12)"
 need npm "install Node 22 with npm (the frontend image uses node:22)"
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' \
   || { echo "Python 3.10+ is required, found $(python3 --version)" >&2; exit 1; }
+# The frontend toolchain's floor (frontend/package.json "engines"): jsdom 30
+# needs 22.22.2+, vite 8 22.12+. Below it npm silently SKIPS rolldown's native
+# binding (an optional dependency whose engines do not match), and every
+# frontend command then fails with "Cannot find module @rolldown/binding-...".
+node -e '
+  const [a, b, c] = process.versions.node.split(".").map(Number);
+  const ok = (a === 22 && (b > 22 || (b === 22 && c >= 2))) || (a === 24 && b >= 15) || a >= 26;
+  process.exit(ok ? 0 : 1);' \
+  || { echo "Node $(node --version) is too old for the frontend: need 22.22.2+ (or 24.15+ / 26+)." \
+            "Install the current Node 22 (e.g. https://nodejs.org or nvm install 22; see .nvmrc)." >&2; exit 1; }
 
 echo "== backend: backend/.venv"
 if command -v uv >/dev/null 2>&1; then

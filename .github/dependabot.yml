@@ -30,3 +30,10 @@ updates:
         patterns: ["eslint", "@eslint/*", "eslint-plugin-*", "typescript-eslint"]
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # TypeScript 7 (the native compiler) cannot be adopted yet:
+      # typescript-eslint 8.71, the newest release, declares
+      # typescript <6.1.0 as its peer, so npm refuses to install them
+      # together. Revisit when typescript-eslint supports 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
