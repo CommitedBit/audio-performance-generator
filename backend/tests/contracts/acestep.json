@@ -1,0 +1,971 @@
+{
+  "generated_by": "scripts/snapshot_contracts.py",
+  "library": "acestep",
+  "modules": {
+    "acestep.handler": {
+      "AceStepHandler": {
+        "attributes": {},
+        "defined_in": "acestep/handler.py",
+        "kind": "class",
+        "line": 62,
+        "methods": {
+          "__init__": {
+            "binding": "method",
+            "decorators": [],
+            "defined_in": "acestep/handler.py",
+            "line": 103,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              }
+            ],
+            "returns": null
+          },
+          "initialize_service": {
+            "binding": "method",
+            "decorators": [],
+            "defined_in": "acestep/core/generation/handler/init_service_orchestrator.py",
+            "line": 48,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "project_root"
+              },
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "config_path"
+              },
+              {
+                "annotation": "str",
+                "default": "\"auto\"",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "device"
+              },
+              {
+                "annotation": "bool",
+                "default": "False",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "use_flash_attention"
+              },
+              {
+                "annotation": "bool",
+                "default": "False",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "compile_model"
+              },
+              {
+                "annotation": "bool",
+                "default": "False",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "offload_to_cpu"
+              },
+              {
+                "annotation": "bool",
+                "default": "False",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "offload_dit_to_cpu"
+              },
+              {
+                "annotation": "Optional[str]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "quantization"
+              },
+              {
+                "annotation": "Optional[str]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "prefer_source"
+              },
+              {
+                "annotation": "bool",
+                "default": "True",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "use_mlx_dit"
+              },
+              {
+                "annotation": "Optional[str]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "vae_checkpoint"
+              }
+            ],
+            "returns": "Tuple[str, bool]"
+          }
+        }
+      }
+    },
+    "acestep.inference": {
+      "GenerationConfig": {
+        "defined_in": "acestep/inference.py",
+        "fields": [
+          {
+            "annotation": "int",
+            "default": "2",
+            "init": true,
+            "kw_only": false,
+            "line": 254,
+            "name": "batch_size"
+          },
+          {
+            "annotation": "bool",
+            "default": "False",
+            "init": true,
+            "kw_only": false,
+            "line": 255,
+            "name": "allow_lm_batch"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 256,
+            "name": "use_random_seed"
+          },
+          {
+            "annotation": "Optional[List[int]]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 257,
+            "name": "seeds"
+          },
+          {
+            "annotation": "int",
+            "default": "8",
+            "init": true,
+            "kw_only": false,
+            "line": 258,
+            "name": "lm_batch_chunk_size"
+          },
+          {
+            "annotation": "bool",
+            "default": "False",
+            "init": true,
+            "kw_only": false,
+            "line": 259,
+            "name": "constrained_decoding_debug"
+          },
+          {
+            "annotation": "str",
+            "default": "\"flac\"",
+            "init": true,
+            "kw_only": false,
+            "line": 260,
+            "name": "audio_format"
+          },
+          {
+            "annotation": "str",
+            "default": "\"128k\"",
+            "init": true,
+            "kw_only": false,
+            "line": 261,
+            "name": "mp3_bitrate"
+          },
+          {
+            "annotation": "int",
+            "default": "48000",
+            "init": true,
+            "kw_only": false,
+            "line": 262,
+            "name": "mp3_sample_rate"
+          }
+        ],
+        "kind": "dataclass",
+        "line": 237,
+        "options": {}
+      },
+      "GenerationParams": {
+        "defined_in": "acestep/inference.py",
+        "fields": [
+          {
+            "annotation": "str",
+            "default": "\"text2music\"",
+            "init": true,
+            "kw_only": false,
+            "line": 111,
+            "name": "task_type"
+          },
+          {
+            "annotation": "str",
+            "default": "\"Fill the audio semantic mask based on the given conditions:\"",
+            "init": true,
+            "kw_only": false,
+            "line": 112,
+            "name": "instruction"
+          },
+          {
+            "annotation": "Optional[str]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 115,
+            "name": "reference_audio"
+          },
+          {
+            "annotation": "Optional[str]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 116,
+            "name": "src_audio"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 119,
+            "name": "audio_codes"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 122,
+            "name": "caption"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 123,
+            "name": "global_caption"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 124,
+            "name": "lyrics"
+          },
+          {
+            "annotation": "bool",
+            "default": "False",
+            "init": true,
+            "kw_only": false,
+            "line": 125,
+            "name": "instrumental"
+          },
+          {
+            "annotation": "str",
+            "default": "\"unknown\"",
+            "init": true,
+            "kw_only": false,
+            "line": 128,
+            "name": "vocal_language"
+          },
+          {
+            "annotation": "Optional[int]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 129,
+            "name": "bpm"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 130,
+            "name": "keyscale"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 131,
+            "name": "timesignature"
+          },
+          {
+            "annotation": "float",
+            "default": "-1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 132,
+            "name": "duration"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 135,
+            "name": "enable_normalization"
+          },
+          {
+            "annotation": "float",
+            "default": "-1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 136,
+            "name": "normalization_db"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 137,
+            "name": "fade_in_duration"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 138,
+            "name": "fade_out_duration"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 141,
+            "name": "latent_shift"
+          },
+          {
+            "annotation": "float",
+            "default": "1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 142,
+            "name": "latent_rescale"
+          },
+          {
+            "annotation": "int",
+            "default": "8",
+            "init": true,
+            "kw_only": false,
+            "line": 145,
+            "name": "inference_steps"
+          },
+          {
+            "annotation": "int",
+            "default": "-1",
+            "init": true,
+            "kw_only": false,
+            "line": 146,
+            "name": "seed"
+          },
+          {
+            "annotation": "float",
+            "default": "7.0",
+            "init": true,
+            "kw_only": false,
+            "line": 147,
+            "name": "guidance_scale"
+          },
+          {
+            "annotation": "bool",
+            "default": "False",
+            "init": true,
+            "kw_only": false,
+            "line": 148,
+            "name": "use_adg"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 149,
+            "name": "cfg_interval_start"
+          },
+          {
+            "annotation": "float",
+            "default": "1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 150,
+            "name": "cfg_interval_end"
+          },
+          {
+            "annotation": "float",
+            "default": "1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 151,
+            "name": "shift"
+          },
+          {
+            "annotation": "str",
+            "default": "\"ode\"",
+            "init": true,
+            "kw_only": false,
+            "line": 152,
+            "name": "infer_method"
+          },
+          {
+            "annotation": "str",
+            "default": "\"euler\"",
+            "init": true,
+            "kw_only": false,
+            "line": 153,
+            "name": "sampler_mode"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 154,
+            "name": "velocity_norm_threshold"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 155,
+            "name": "velocity_ema_factor"
+          },
+          {
+            "annotation": "Optional[bool]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 159,
+            "name": "dcw_enabled"
+          },
+          {
+            "annotation": "str",
+            "default": "\"double\"",
+            "init": true,
+            "kw_only": false,
+            "line": 164,
+            "name": "dcw_mode"
+          },
+          {
+            "annotation": "float",
+            "default": "0.05",
+            "init": true,
+            "kw_only": false,
+            "line": 165,
+            "name": "dcw_scaler"
+          },
+          {
+            "annotation": "float",
+            "default": "0.02",
+            "init": true,
+            "kw_only": false,
+            "line": 166,
+            "name": "dcw_high_scaler"
+          },
+          {
+            "annotation": "str",
+            "default": "\"haar\"",
+            "init": true,
+            "kw_only": false,
+            "line": 167,
+            "name": "dcw_wavelet"
+          },
+          {
+            "annotation": "Optional[List[float]]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 170,
+            "name": "timesteps"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 172,
+            "name": "repainting_start"
+          },
+          {
+            "annotation": "float",
+            "default": "-1",
+            "init": true,
+            "kw_only": false,
+            "line": 173,
+            "name": "repainting_end"
+          },
+          {
+            "annotation": "str",
+            "default": "\"auto\"",
+            "init": true,
+            "kw_only": false,
+            "line": 174,
+            "name": "chunk_mask_mode"
+          },
+          {
+            "annotation": "int",
+            "default": "10",
+            "init": true,
+            "kw_only": false,
+            "line": 175,
+            "name": "repaint_latent_crossfade_frames"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 176,
+            "name": "repaint_wav_crossfade_sec"
+          },
+          {
+            "annotation": "str",
+            "default": "\"balanced\"",
+            "init": true,
+            "kw_only": false,
+            "line": 177,
+            "name": "repaint_mode"
+          },
+          {
+            "annotation": "float",
+            "default": "0.5",
+            "init": true,
+            "kw_only": false,
+            "line": 178,
+            "name": "repaint_strength"
+          },
+          {
+            "annotation": "Optional[Union[str, int]]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 181,
+            "name": "retake_seed"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 182,
+            "name": "retake_variance"
+          },
+          {
+            "annotation": "bool",
+            "default": "False",
+            "init": true,
+            "kw_only": false,
+            "line": 193,
+            "name": "flow_edit_morph"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 194,
+            "name": "flow_edit_source_caption"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 195,
+            "name": "flow_edit_source_lyrics"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 196,
+            "name": "flow_edit_n_min"
+          },
+          {
+            "annotation": "float",
+            "default": "1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 197,
+            "name": "flow_edit_n_max"
+          },
+          {
+            "annotation": "int",
+            "default": "1",
+            "init": true,
+            "kw_only": false,
+            "line": 198,
+            "name": "flow_edit_n_avg"
+          },
+          {
+            "annotation": "float",
+            "default": "1.0",
+            "init": true,
+            "kw_only": false,
+            "line": 199,
+            "name": "audio_cover_strength"
+          },
+          {
+            "annotation": "float",
+            "default": "0.0",
+            "init": true,
+            "kw_only": false,
+            "line": 200,
+            "name": "cover_noise_strength"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 203,
+            "name": "thinking"
+          },
+          {
+            "annotation": "float",
+            "default": "0.85",
+            "init": true,
+            "kw_only": false,
+            "line": 204,
+            "name": "lm_temperature"
+          },
+          {
+            "annotation": "float",
+            "default": "2.0",
+            "init": true,
+            "kw_only": false,
+            "line": 205,
+            "name": "lm_cfg_scale"
+          },
+          {
+            "annotation": "int",
+            "default": "0",
+            "init": true,
+            "kw_only": false,
+            "line": 206,
+            "name": "lm_top_k"
+          },
+          {
+            "annotation": "float",
+            "default": "0.9",
+            "init": true,
+            "kw_only": false,
+            "line": 207,
+            "name": "lm_top_p"
+          },
+          {
+            "annotation": "str",
+            "default": "\"NO USER INPUT\"",
+            "init": true,
+            "kw_only": false,
+            "line": 208,
+            "name": "lm_negative_prompt"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 209,
+            "name": "use_cot_metas"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 210,
+            "name": "use_cot_caption"
+          },
+          {
+            "annotation": "bool",
+            "default": "False",
+            "init": true,
+            "kw_only": false,
+            "line": 211,
+            "name": "use_cot_lyrics"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 212,
+            "name": "use_cot_language"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 213,
+            "name": "use_constrained_decoding"
+          },
+          {
+            "annotation": "Optional[int]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 215,
+            "name": "cot_bpm"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 216,
+            "name": "cot_keyscale"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 217,
+            "name": "cot_timesignature"
+          },
+          {
+            "annotation": "Optional[float]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 218,
+            "name": "cot_duration"
+          },
+          {
+            "annotation": "str",
+            "default": "\"unknown\"",
+            "init": true,
+            "kw_only": false,
+            "line": 219,
+            "name": "cot_vocal_language"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 220,
+            "name": "cot_caption"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 221,
+            "name": "cot_lyrics"
+          }
+        ],
+        "kind": "dataclass",
+        "line": 56,
+        "options": {}
+      },
+      "GenerationResult": {
+        "defined_in": "acestep/inference.py",
+        "fields": [
+          {
+            "annotation": "List[Dict[str, Any]]",
+            "default": "field(default_factory=list)",
+            "init": true,
+            "kw_only": false,
+            "line": 292,
+            "name": "audios"
+          },
+          {
+            "annotation": "str",
+            "default": "\"\"",
+            "init": true,
+            "kw_only": false,
+            "line": 294,
+            "name": "status_message"
+          },
+          {
+            "annotation": "Dict[str, Any]",
+            "default": "field(default_factory=dict)",
+            "init": true,
+            "kw_only": false,
+            "line": 295,
+            "name": "extra_outputs"
+          },
+          {
+            "annotation": "bool",
+            "default": "True",
+            "init": true,
+            "kw_only": false,
+            "line": 297,
+            "name": "success"
+          },
+          {
+            "annotation": "Optional[str]",
+            "default": "None",
+            "init": true,
+            "kw_only": false,
+            "line": 298,
+            "name": "error"
+          }
+        ],
+        "kind": "dataclass",
+        "line": 279,
+        "options": {}
+      },
+      "generate_music": {
+        "binding": "function",
+        "decorators": [
+          "_get_spaces_gpu_decorator(duration=180)"
+        ],
+        "defined_in": "acestep/inference.py",
+        "dict_literals": {
+          "audio_dict": [
+            "key",
+            "params",
+            "path",
+            "sample_rate",
+            "tensor"
+          ]
+        },
+        "kind": "function",
+        "line": 514,
+        "params": [
+          {
+            "annotation": null,
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "name": "dit_handler"
+          },
+          {
+            "annotation": null,
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "name": "llm_handler"
+          },
+          {
+            "annotation": "GenerationParams",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "name": "params"
+          },
+          {
+            "annotation": "GenerationConfig",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "name": "config"
+          },
+          {
+            "annotation": "Optional[str]",
+            "default": "None",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "name": "save_dir"
+          },
+          {
+            "annotation": null,
+            "default": "None",
+            "kind": "POSITIONAL_OR_KEYWORD",
+            "name": "progress"
+          }
+        ],
+        "returns": "GenerationResult"
+      }
+    },
+    "acestep.llm_inference": {
+      "LLMHandler": {
+        "attributes": {},
+        "defined_in": "acestep/llm_inference.py",
+        "kind": "class",
+        "line": 48,
+        "methods": {
+          "__init__": {
+            "binding": "method",
+            "decorators": [],
+            "defined_in": "acestep/llm_inference.py",
+            "line": 56,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": "Optional[str]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "persistent_storage_path"
+              }
+            ],
+            "returns": null
+          },
+          "initialize": {
+            "binding": "method",
+            "decorators": [],
+            "defined_in": "acestep/llm_inference.py",
+            "line": 499,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "checkpoint_dir"
+              },
+              {
+                "annotation": "str",
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "lm_model_path"
+              },
+              {
+                "annotation": "str",
+                "default": "\"vllm\"",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "backend"
+              },
+              {
+                "annotation": "str",
+                "default": "\"auto\"",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "device"
+              },
+              {
+                "annotation": "bool",
+                "default": "False",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "offload_to_cpu"
+              },
+              {
+                "annotation": "Optional[torch.dtype]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "dtype"
+              }
+            ],
+            "returns": "Tuple[str, bool]"
+          }
+        }
+      }
+    }
+  },
+  "source": {
+    "distribution": "ACE-Step-1.5",
+    "ref": "ca1e85fe9430",
+    "sha256": "b464c11f00af00e1e089a09f58a03962f803c080f116fd0517dbe5ec839706b3",
+    "url": "https://github.com/ace-step/ACE-Step-1.5/archive/ca1e85fe9430.tar.gz"
+  }
+}

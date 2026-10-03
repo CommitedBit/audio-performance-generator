@@ -1,0 +1,259 @@
+{
+  "generated_by": "scripts/snapshot_contracts.py",
+  "library": "stable_audio_3",
+  "modules": {
+    "stable_audio_3": {
+      "StableAudioModel": {
+        "attributes": {
+          "model": {
+            "defined_in": "stable_audio_3/model.py",
+            "line": 19,
+            "source": "self.model = model",
+            "via": "self.model in __init__"
+          }
+        },
+        "defined_in": "stable_audio_3/model.py",
+        "kind": "class",
+        "line": 17,
+        "methods": {
+          "from_pretrained": {
+            "binding": "staticmethod",
+            "decorators": [
+              "staticmethod"
+            ],
+            "defined_in": "stable_audio_3/model.py",
+            "line": 31,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "model_name"
+              },
+              {
+                "annotation": null,
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "device"
+              },
+              {
+                "annotation": null,
+                "default": "True",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "model_half"
+              }
+            ],
+            "returns": null
+          },
+          "generate": {
+            "binding": "method",
+            "decorators": [
+              "torch.inference_mode()"
+            ],
+            "defined_in": "stable_audio_3/model.py",
+            "kwargs_consumed": [
+              "sampler_type"
+            ],
+            "line": 77,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": "str | list",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "prompt"
+              },
+              {
+                "annotation": "str | list",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "negative_prompt"
+              },
+              {
+                "annotation": "float | list",
+                "default": "120",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "duration"
+              },
+              {
+                "annotation": "int",
+                "default": "8",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "steps"
+              },
+              {
+                "annotation": "float",
+                "default": "1.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "cfg_scale"
+              },
+              {
+                "annotation": "int",
+                "default": "1",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "batch_size"
+              },
+              {
+                "annotation": "int",
+                "default": "5292032",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "sample_size"
+              },
+              {
+                "annotation": "bool",
+                "default": "True",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "truncate_output_to_duration"
+              },
+              {
+                "annotation": "tp.Optional[tp.List[dict]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "conditioning"
+              },
+              {
+                "annotation": "tp.Optional[dict]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "conditioning_tensors"
+              },
+              {
+                "annotation": "tp.Optional[tp.List[dict]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "negative_conditioning"
+              },
+              {
+                "annotation": "tp.Optional[dict]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "negative_conditioning_tensors"
+              },
+              {
+                "annotation": "int",
+                "default": "-1",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "seed"
+              },
+              {
+                "annotation": "tp.Optional[tp.Tuple[int, torch.Tensor]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "init_audio"
+              },
+              {
+                "annotation": "float",
+                "default": "1.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "init_noise_level"
+              },
+              {
+                "annotation": "tp.Optional[tp.Tuple[int, torch.Tensor]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "inpaint_audio"
+              },
+              {
+                "annotation": null,
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "inpaint_mask"
+              },
+              {
+                "annotation": "tp.Optional[tp.Union[float, tp.List[float]]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "inpaint_mask_start_seconds"
+              },
+              {
+                "annotation": "tp.Optional[tp.Union[float, tp.List[float]]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "inpaint_mask_end_seconds"
+              },
+              {
+                "annotation": "float",
+                "default": "6.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "duration_padding_sec"
+              },
+              {
+                "annotation": "float",
+                "default": "1.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "apg_scale"
+              },
+              {
+                "annotation": null,
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "dist_shift"
+              },
+              {
+                "annotation": "bool",
+                "default": "False",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "return_latents"
+              },
+              {
+                "annotation": "tp.Optional[bool]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "chunked_decode"
+              },
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "VAR_KEYWORD",
+                "name": "sampler_kwargs"
+              }
+            ],
+            "returns": "torch.Tensor"
+          }
+        }
+      }
+    },
+    "stable_audio_3.model_configs": {
+      "models": {
+        "defined_in": "stable_audio_3/model_configs.py",
+        "keys": [
+          "medium",
+          "medium-base",
+          "small-music",
+          "small-music-base",
+          "small-sfx",
+          "small-sfx-base"
+        ],
+        "kind": "dict",
+        "line": 54
+      }
+    },
+    "stable_audio_3.models.diffusion": {
+      "ConditionedDiffusionModelWrapper": {
+        "attributes": {
+          "sample_rate": {
+            "defined_in": "stable_audio_3/models/diffusion.py",
+            "line": 57,
+            "source": "self.sample_rate = sample_rate",
+            "via": "self.sample_rate in __init__"
+          }
+        },
+        "defined_in": "stable_audio_3/models/diffusion.py",
+        "kind": "class",
+        "line": 28,
+        "methods": {}
+      }
+    }
+  },
+  "source": {
+    "distribution": "stable-audio-3",
+    "ref": "779434a90819",
+    "sha256": "0cf1a8b265853ed8ee5cc104f54127db3e35a4f922c407daf3ea0e756f923259",
+    "url": "https://github.com/Stability-AI/stable-audio-3/archive/779434a90819.tar.gz"
+  }
+}
