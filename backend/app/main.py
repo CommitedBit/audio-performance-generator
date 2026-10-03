@@ -28,7 +28,14 @@ from .auth import api_key_middleware
 from .config import get_settings
 from .gpu_lock import gpu_slot
 from .jobs import Job, JobQueue, JobStatus
-from .providers.base import Capability, GenerateRequest, check_audio_sane, wav_duration
+from .providers.base import (
+    Capability,
+    GenerateRequest,
+    SilentOutputError,
+    check_audio_sane,
+    mp3_duration,
+    wav_duration,
+)
 from .registry import get_registry
 from .rng import rng_scope
 from .schemas import GenerateBody, HealthResponse, SpeechBody
@@ -161,14 +168,21 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
         # Fail loudly on silent/degenerate output rather than storing a clip of
         # nothing and reporting success. Only meaningful for WAV; the cloud
         # providers return mp3 and are skipped.
-        # For WAV the duration is MEASURED from the file being stored, not taken
-        # from the provider: the frontend trusts this value to size the clip,
-        # and a provider computing it along the wrong axis produced a ~0 s clip
-        # for a full-length stereo file. mp3 (cloud) keeps the reported value.
+        # The duration is MEASURED from the file being stored, not taken from
+        # the provider: the frontend trusts this value to size the clip, and a
+        # provider computing it along the wrong axis produced a ~0 s clip for a
+        # full-length stereo file. mp3 is measured too -- ElevenLabs reported
+        # 0 s for speech and the requested length for sfx.
         duration = result.duration
         if result.mime == "audio/wav":
             check_audio_sane(result.audio)
             duration = wav_duration(result.audio)
+        elif result.mime == "audio/mpeg":
+            try:
+                duration = mp3_duration(result.audio)
+            except ValueError as exc:
+                # No frames is no audio -- e.g. an error page served as mp3.
+                raise SilentOutputError(f"mp3 from {result.provider_id} contains no audio frames") from exc
 
         audio_id = storage.save_audio(
             result.audio,
