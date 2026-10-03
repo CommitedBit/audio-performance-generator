@@ -9,6 +9,11 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 ## [Unreleased]
 
 ### Fixed
+- **MP3 audio from ElevenLabs reports its real length.** Only WAV was measured
+  server-side, so ElevenLabs speech reported 0 s and sfx the length it was
+  asked for. MP3 is now measured from its frames (stdlib, no new dependency).
+  An mp3 with no audio frames, such as an error page, fails the job instead of
+  storing nothing.
 - **A running job no longer jumps to the top of `GET /v1/jobs`.** When the
   oldest job was still running, the job list's cleanup moved it to the end of
   the list, so it listed as the newest, and kept one job more than its limit.

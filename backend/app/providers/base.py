@@ -130,6 +130,51 @@ def wav_duration(data: bytes) -> float:
     return frames / rate
 
 
+# MPEG audio Layer III tables, indexed by the frame header's fields.
+_MP3_RATES = {3: (44100, 48000, 32000), 2: (22050, 24000, 16000), 0: (11025, 12000, 8000)}
+_MP3_KBPS = {
+    3: (0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320),     # MPEG-1
+    2: (0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160),        # MPEG-2 and 2.5
+}
+
+
+def mp3_duration(data: bytes) -> float:
+    """Length of an MP3 (MPEG Layer III) stream, by walking its frame headers.
+
+    Stdlib only: the usual library for this (mutagen) is GPL. Skips an ID3v2
+    tag and any junk before the first frame, then sums samples-per-frame over
+    every frame, so constant and variable bitrates both measure exactly. A
+    Xing/Info header frame counts as one frame (~26 ms), well inside what a
+    timeline can show. Raises ValueError if there are no frames at all.
+    """
+    pos = 0
+    if data[:3] == b"ID3" and len(data) >= 10:
+        size = (data[6] & 0x7F) << 21 | (data[7] & 0x7F) << 14 | (data[8] & 0x7F) << 7 | (data[9] & 0x7F)
+        pos = 10 + size + (10 if data[5] & 0x10 else 0)       # footer flag
+
+    seconds = 0.0
+    frames = 0
+    end = len(data) - 4
+    while pos <= end:
+        b1, b2 = data[pos + 1], data[pos + 2]
+        version, layer = (b1 >> 3) & 0x3, (b1 >> 1) & 0x3
+        kbps_index, rate_index = b2 >> 4, (b2 >> 2) & 0x3
+        if (data[pos] != 0xFF or (b1 & 0xE0) != 0xE0 or version == 1 or layer != 1
+                or kbps_index in (0, 15) or rate_index == 3):
+            pos += 1                                          # not a frame header: resync
+            continue
+        rate = _MP3_RATES[version][rate_index]
+        kbps = _MP3_KBPS[3 if version == 3 else 2][kbps_index]
+        samples = 1152 if version == 3 else 576
+        length = samples // 8 * kbps * 1000 // rate + ((b2 >> 1) & 0x1)
+        seconds += samples / rate
+        frames += 1
+        pos += length
+    if not frames:
+        raise ValueError("no MPEG Layer III frames found")
+    return seconds
+
+
 class Provider(abc.ABC):
     """One generation backend for one capability.
 
