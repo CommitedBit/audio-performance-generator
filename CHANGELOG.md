@@ -21,6 +21,8 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
   The behaviour is unchanged. New tests pin it, and they pass on the old code
   too. Dependabot now groups ESLint packages so they arrive together.
+- **vitest 5** (from Dependabot #25). It is folded in here because both
+  upgrades rewrite `package-lock.json`. All 103 frontend tests run under it.
 
 ### Added
 - **`scripts/smoke_gpu.py --idle-check` (opt-in) checks that idle unloading
