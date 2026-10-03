@@ -82,7 +82,7 @@ def test_bump_moves_every_field_and_cuts_the_changelog(tmp_path):
     assert r.returncode == 0, r.stderr
     assert set(_versions(root).values()) == {new}
     text = changelog.read_text()
-    assert f"## [Unreleased]\n\n## [{new}] - 2030-01-02\n### Fixed\n- a thing\n" in text
+    assert f"## [Unreleased]\n\n## [{new}] - 2030-01-02\n\n### Fixed\n- a thing\n" in text
     assert text.count("## [Unreleased]") == 1
 
 

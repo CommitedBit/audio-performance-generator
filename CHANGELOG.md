@@ -8,6 +8,8 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-03
+
 ### Fixed
 - **A running job reports its phase:**
   - loading `<model>`, which happens on a first load and can take minutes
@@ -16,17 +18,17 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
   The generation panel shows the phase and the elapsed time. Before, a job
   read "generating" from before its model even started loading, and its
-  progress jumped from 0 to 1 at the end.
+  progress jumped from 0 to 1 at the end. #19
 - **MP3 audio from ElevenLabs reports its real length.** Only WAV was measured
   server-side, so ElevenLabs speech reported 0 s and sfx the length it was
   asked for. MP3 is now measured from its frames (stdlib, no new dependency).
   An mp3 with no audio frames, such as an error page, fails the job instead of
-  storing nothing.
+  storing nothing. #18
 - **A running job no longer jumps to the top of `GET /v1/jobs`.** When the
   oldest job was still running, the job list's cleanup moved it to the end of
   the list, so it listed as the newest, and kept one job more than its limit.
   Cleanup now drops the oldest *finished* jobs and leaves everything else in
-  place.
+  place. #17
 
 ## [0.1.0] - 2026-10-03
 

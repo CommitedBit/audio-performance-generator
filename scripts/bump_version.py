@@ -49,7 +49,7 @@ def cut_changelog(path: Path, version: str, date: str) -> None:
         sys.exit("CHANGELOG.md has no [Unreleased] section followed by a release")
     if not m.group(1).strip():
         sys.exit("[Unreleased] is empty: record the changes before releasing")
-    heading = f"## [Unreleased]\n\n## [{version}] - {date}\n"
+    heading = f"## [Unreleased]\n\n## [{version}] - {date}\n\n"
     path.write_text(text[: m.start()] + heading + m.group(1).lstrip("\n") + text[m.end():])
 
 

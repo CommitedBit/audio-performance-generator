@@ -1,6 +1,6 @@
 # Handoff: state of the project and what comes next
 
-Written 2026-10-03, for release **v0.1.0**: the first stable foundation. Read
+Written 2026-10-03, for release **v0.1.1**: the first stable foundation (v0.1.0) plus the fixes found at hand-off. Read
 [CLAUDE.md](CLAUDE.md) first for the architecture, invariants and checks.
 
 ## The project and its owner's decisions
@@ -23,8 +23,9 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is release **v0.1.0**: PRs #4–#16, merged bottom-up with merge commits
-and tagged. The tag publishes the release notes from
+`main` is release **v0.1.1**: v0.1.0 (PRs #4–#16) plus the hand-off fixes
+(#17–#19) and the version bump (#20). All of them were merged bottom-up with
+merge commits and tagged. The tag publishes the release notes from
 [CHANGELOG.md](CHANGELOG.md). New work branches from `main` and follows
 [docs/git-workflow.md](docs/git-workflow.md):
 - one concern per PR
@@ -113,8 +114,7 @@ attempt to merge was blocked as "merge without review".
    - `storage._safe` path validation
    - the ElevenLabs key staying server-side
    - ports bound to loopback, and nginx not injecting the key
-6. **Bugs found at hand-off, now fixed** (CHANGELOG `[Unreleased]`, released
-   as v0.1.1):
+6. **Bugs found at hand-off, fixed in v0.1.1** (#17–#19):
    - ElevenLabs mp3 lengths are now measured.
    - The job list keeps its order.
    - Jobs report their phase.
