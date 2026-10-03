@@ -306,12 +306,14 @@ Vite proxies `/api` there, matching what nginx does in the container, so
 ## Tests
 
 ```bash
-cd backend && uv pip install -e ".[dev]" && ruff check app tests && pytest
+(cd backend && uv pip install -e ".[dev]" && ruff check app tests && pytest)
+(cd frontend && npm ci && npm run lint && npm test)
 ```
 
 No GPU, torch or weights needed: providers are faked, the gateway talks to fake
-upstreams, and the GPU-slot tests use real subprocesses. CI
-(`.github/workflows/ci.yml`) runs this plus the frontend lint/build and a
+upstreams, and the GPU-slot tests use real subprocesses. The frontend tests
+(vitest) stub `fetch`, so they need no server either. CI
+(`.github/workflows/ci.yml`) runs these plus the frontend build and a
 `docker compose config` of every topology, on every pull request.
 
 ## Adding a model

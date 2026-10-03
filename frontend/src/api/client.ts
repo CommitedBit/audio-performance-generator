@@ -136,11 +136,19 @@ function authError(): ApiError {
   );
 }
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError';
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, withAuth(init));
-  } catch {
+  } catch (err) {
+    // An abort is the caller's own doing. Rewritten as "cannot reach" it was
+    // indistinguishable from a dead server, so a caller could neither stay
+    // quiet about a cancel nor retry only real outages.
+    if (isAbortError(err)) throw err;
     // A dead backend is the most likely failure in local dev, so name it
     // rather than surfacing a bare "Failed to fetch".
     throw new ApiError(0, `cannot reach the model server at ${API_BASE} - is it running?`);
@@ -226,28 +234,110 @@ export function cancelJob(id: string): Promise<JobInfo> {
   return request<JobInfo>(`/v1/jobs/${id}`, { method: 'DELETE' });
 }
 
+/**
+ * Cancel a job nobody is waiting for any more, best effort.
+ *
+ * A 409 means it is already running (work inside torch cannot be interrupted)
+ * and a network error means there is no server to tell. The caller has moved
+ * on either way and has nowhere to show either, so neither is an error.
+ */
+function abandonJob(id: string): void {
+  void cancelJob(id).catch(() => {
+    /* 409 or unreachable: nothing more to do, and nowhere to report it */
+  });
+}
+
 const TERMINAL: JobStatus[] = ['done', 'error', 'cancelled'];
+
+// Music generation runs for minutes, so polling backs off from 500ms to 3s
+// rather than hammering the server for the whole run.
+const POLL_FIRST_MS = 500;
+const POLL_MAX_MS = 3000;
+// A failed poll backs off further, up to this.
+const RETRY_MAX_MS = 10_000;
+// How long polls may keep failing before the job is given up on: long enough
+// to ride out a gateway or nginx restart or a Wi-Fi drop, short enough that a
+// server that is really gone is reported instead of polled forever.
+const OUTAGE_LIMIT_MS = 60_000;
+
+/**
+ * Whether a failed poll is worth repeating.
+ *
+ * Status 0 is "could not reach the server", and a 5xx is mostly the gateway
+ * saying the same of a model service (502/504) or a server mid-restart (503),
+ * which clear on their own. A 4xx is an answer -- a 404 after a model service
+ * restarted means the job is gone, a 401 means the key is wrong -- and asking
+ * again cannot change it.
+ */
+function isTransient(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 0 || err.status >= 500);
+}
+
+/** A delay that an abort cuts short, so a cancel never waits out a backoff. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('aborted', 'AbortError'));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException('aborted', 'AbortError'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+export interface WaitOptions {
+  /**
+   * Cancel the server job when `signal` aborts. For callers whose abort means
+   * the result is no longer wanted, not merely that one view stopped watching.
+   */
+  cancelOnAbort?: boolean;
+}
 
 /**
  * Poll a job to completion.
  *
- * Music generation runs for minutes, so this backs off from 500ms to 3s rather
- * than hammering the server for the whole run.
+ * A failed poll is retried while it looks transient (see isTransient), until
+ * none has succeeded for OUTAGE_LIMIT_MS. One dropped request used to fail a
+ * generation that was still running fine on the server.
  */
 export async function waitForJob(
   job: JobInfo,
   onUpdate?: (job: JobInfo) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  { cancelOnAbort = false }: WaitOptions = {}
 ): Promise<JobInfo> {
   let current = job;
-  let delay = 500;
+  let delay = POLL_FIRST_MS;
+  let failingSince: number | null = null;
 
-  while (!TERMINAL.includes(current.status)) {
-    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    await new Promise(resolve => setTimeout(resolve, delay));
-    delay = Math.min(delay * 1.4, 3000);
-    current = await getJob(current.id, signal);
-    onUpdate?.(current);
+  try {
+    while (!TERMINAL.includes(current.status)) {
+      await sleep(delay, signal);
+      try {
+        current = await getJob(current.id, signal);
+      } catch (err) {
+        if (!isTransient(err)) throw err;
+        failingSince ??= Date.now();
+        if (Date.now() - failingSince >= OUTAGE_LIMIT_MS) throw err;
+        delay = Math.min(delay * 2, RETRY_MAX_MS);
+        continue;
+      }
+      failingSince = null;
+      delay = Math.min(delay * 1.4, POLL_MAX_MS);
+      onUpdate?.(current);
+    }
+  } catch (err) {
+    // Stopping the poll alone leaves a queued job to take its turn on the GPU
+    // and produce audio nobody collects.
+    if (cancelOnAbort && isAbortError(err)) abandonJob(current.id);
+    throw err;
   }
 
   if (current.status === 'error') {
@@ -266,6 +356,30 @@ export async function fetchAudio(job: JobInfo): Promise<Blob> {
   if (res.status === 401) throw authError();
   if (!res.ok) throw new ApiError(res.status, `could not fetch audio: ${res.statusText}`);
   return await res.blob();
+}
+
+/**
+ * One clip's audio, start to finish: submit, wait for the job, fetch the file.
+ *
+ * Aborting `signal` means the caller no longer wants the result (the panel
+ * unmounted), so a job still waiting on the server is cancelled rather than
+ * left to take its turn on the GPU. The sequence lives here, not in the
+ * component, so its abort and cancel cases are tested without a DOM; the
+ * panel's own test only checks that unmounting gets here.
+ */
+export async function generateAudio(
+  capability: Capability,
+  opts: GenerateOptions,
+  signal?: AbortSignal,
+  onUpdate?: (job: JobInfo) => void
+): Promise<{ job: JobInfo; blob: Blob }> {
+  let job = await generate(capability, opts, signal);
+  onUpdate?.(job);
+  // Voice returns finished work; music and sfx come back queued.
+  if (job.status !== 'done') {
+    job = await waitForJob(job, onUpdate, signal, { cancelOnAbort: true });
+  }
+  return { job, blob: await fetchAudio(job) };
 }
 
 // -- voice clone references ---------------------------------------------------
