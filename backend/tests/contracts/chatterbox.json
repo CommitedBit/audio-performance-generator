@@ -1,0 +1,115 @@
+{
+  "generated_by": "scripts/snapshot_contracts.py",
+  "library": "chatterbox",
+  "modules": {
+    "chatterbox.tts": {
+      "ChatterboxTTS": {
+        "attributes": {
+          "sr": {
+            "defined_in": "src/chatterbox/tts.py",
+            "line": 119,
+            "source": "self.sr = S3GEN_SR  # sample rate of synthesized audio",
+            "via": "self.sr in __init__"
+          }
+        },
+        "defined_in": "src/chatterbox/tts.py",
+        "kind": "class",
+        "line": 106,
+        "methods": {
+          "from_pretrained": {
+            "binding": "classmethod",
+            "decorators": [
+              "classmethod"
+            ],
+            "defined_in": "src/chatterbox/tts.py",
+            "line": 168,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "cls"
+              },
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "device"
+              }
+            ],
+            "returns": "'ChatterboxTTS'"
+          },
+          "generate": {
+            "binding": "method",
+            "decorators": [],
+            "defined_in": "src/chatterbox/tts.py",
+            "line": 208,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "text"
+              },
+              {
+                "annotation": null,
+                "default": "1.2",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "repetition_penalty"
+              },
+              {
+                "annotation": null,
+                "default": "0.05",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "min_p"
+              },
+              {
+                "annotation": null,
+                "default": "1.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "top_p"
+              },
+              {
+                "annotation": null,
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "audio_prompt_path"
+              },
+              {
+                "annotation": null,
+                "default": "0.5",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "exaggeration"
+              },
+              {
+                "annotation": null,
+                "default": "0.5",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "cfg_weight"
+              },
+              {
+                "annotation": null,
+                "default": "0.8",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "temperature"
+              }
+            ],
+            "returns": null
+          }
+        }
+      }
+    }
+  },
+  "source": {
+    "distribution": "chatterbox-tts",
+    "ref": "0.1.7",
+    "sha256": "ed8afae83819b40a25927c2ef3bcc67f928bdfcf434c1376c972e6039252a187",
+    "url": "https://files.pythonhosted.org/packages/c4/b1/8f1203e868111a45b566a79a4f56cd7843c420dfda709b81cebee55afa10/chatterbox_tts-0.1.7.tar.gz"
+  }
+}

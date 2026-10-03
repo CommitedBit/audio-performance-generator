@@ -141,7 +141,10 @@ class _DiffusersRunner:
             negative_prompt=negative_prompt,
             num_inference_steps=steps,
             guidance_scale=cfg,
-            audio_end_in_s=seconds,
+            # `duration`, not Stable Audio Open's audio_end_in_s: SA3's
+            # __call__ has no such parameter and no **kwargs, so that keyword
+            # made every generation through this loader a TypeError.
+            duration=seconds,
             generator=generator,
         )
         return result.audios[0], self.sample_rate

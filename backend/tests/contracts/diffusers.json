@@ -1,0 +1,288 @@
+{
+  "generated_by": "scripts/snapshot_contracts.py",
+  "library": "diffusers",
+  "modules": {
+    "diffusers": {
+      "StableAudio3Pipeline": {
+        "attributes": {
+          "vae": {
+            "defined_in": "src/diffusers/pipelines/stable_audio_3/pipeline_stable_audio_3.py",
+            "line": 200,
+            "source": "vae=vae,",
+            "via": "register_modules"
+          }
+        },
+        "defined_in": "src/diffusers/pipelines/stable_audio_3/pipeline_stable_audio_3.py",
+        "kind": "class",
+        "line": 157,
+        "methods": {
+          "__call__": {
+            "binding": "method",
+            "decorators": [
+              "torch.no_grad()",
+              "replace_example_docstring(EXAMPLE_DOC_STRING)"
+            ],
+            "defined_in": "src/diffusers/pipelines/stable_audio_3/pipeline_stable_audio_3.py",
+            "line": 400,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": "Optional[Union[str, List[str]]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "prompt"
+              },
+              {
+                "annotation": "float",
+                "default": "10.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "duration"
+              },
+              {
+                "annotation": "Optional[int]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "num_inference_steps"
+              },
+              {
+                "annotation": "float",
+                "default": "-6.2",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "logsnr_min"
+              },
+              {
+                "annotation": "float",
+                "default": "2.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "logsnr_max"
+              },
+              {
+                "annotation": "float",
+                "default": "0.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "silence_padding_duration"
+              },
+              {
+                "annotation": "float",
+                "default": "1.0",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "guidance_scale"
+              },
+              {
+                "annotation": "Optional[Union[str, List[str]]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "negative_prompt"
+              },
+              {
+                "annotation": "int",
+                "default": "1",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "num_waveforms_per_prompt"
+              },
+              {
+                "annotation": "Optional[Union[torch.Generator, List[torch.Generator]]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "generator"
+              },
+              {
+                "annotation": "Optional[torch.Tensor]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "latents"
+              },
+              {
+                "annotation": "Optional[torch.Tensor]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "prompt_embeds"
+              },
+              {
+                "annotation": "Optional[torch.LongTensor]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "encoder_attention_mask"
+              },
+              {
+                "annotation": "Optional[torch.Tensor]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "negative_prompt_embeds"
+              },
+              {
+                "annotation": "Optional[torch.LongTensor]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "negative_encoder_attention_mask"
+              },
+              {
+                "annotation": "bool",
+                "default": "True",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "return_dict"
+              },
+              {
+                "annotation": "Optional[Callable[[int, int, dict], dict]]",
+                "default": "None",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "callback_on_step_end"
+              },
+              {
+                "annotation": "List[str]",
+                "default": "[\"latents\"]",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "callback_on_step_end_tensor_inputs"
+              },
+              {
+                "annotation": "str",
+                "default": "\"pt\"",
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "output_type"
+              }
+            ],
+            "returns": "Union[AudioPipelineOutput, tuple]"
+          },
+          "from_pretrained": {
+            "binding": "classmethod",
+            "decorators": [
+              "classmethod",
+              "validate_hf_hub_args"
+            ],
+            "defined_in": "src/diffusers/pipelines/pipeline_utils.py",
+            "kwargs_consumed": [
+              "cache_dir",
+              "custom_pipeline",
+              "custom_revision",
+              "dduf_file",
+              "device_map",
+              "disable_mmap",
+              "dtype",
+              "force_download",
+              "load_connected_pipeline",
+              "local_files_only",
+              "low_cpu_mem_usage",
+              "max_memory",
+              "offload_folder",
+              "offload_state_dict",
+              "provider",
+              "provider_options",
+              "proxies",
+              "quantization_config",
+              "revision",
+              "sess_options",
+              "token",
+              "torch_dtype",
+              "trust_remote_code",
+              "use_flashpack",
+              "use_onnx",
+              "use_safetensors",
+              "variant"
+            ],
+            "line": 640,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "cls"
+              },
+              {
+                "annotation": "str | os.PathLike",
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "pretrained_model_name_or_path"
+              },
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "VAR_KEYWORD",
+                "name": "kwargs"
+              }
+            ],
+            "returns": "Self"
+          },
+          "to": {
+            "binding": "method",
+            "decorators": [],
+            "defined_in": "src/diffusers/pipelines/pipeline_utils.py",
+            "kwargs_consumed": [
+              "device",
+              "dtype",
+              "hpu_migration",
+              "sdp_on_bf16",
+              "silence_dtype_warnings"
+            ],
+            "line": 397,
+            "params": [
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "POSITIONAL_OR_KEYWORD",
+                "name": "self"
+              },
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "VAR_POSITIONAL",
+                "name": "args"
+              },
+              {
+                "annotation": null,
+                "default": null,
+                "kind": "VAR_KEYWORD",
+                "name": "kwargs"
+              }
+            ],
+            "returns": "Self"
+          }
+        }
+      }
+    },
+    "diffusers.models.autoencoders.autoencoder_same": {
+      "AutoencoderSAME": {
+        "attributes": {
+          "sampling_rate": {
+            "defined_in": "src/diffusers/models/autoencoders/autoencoder_same.py",
+            "line": 682,
+            "source": "sampling_rate: int = 44100,",
+            "via": "register_to_config"
+          }
+        },
+        "defined_in": "src/diffusers/models/autoencoders/autoencoder_same.py",
+        "kind": "class",
+        "line": 608,
+        "methods": {}
+      }
+    },
+    "diffusers.pipelines.pipeline_utils": {
+      "AudioPipelineOutput": {
+        "defined_in": "src/diffusers/pipelines/pipeline_utils.py",
+        "fields": [
+          {
+            "annotation": "np.ndarray",
+            "default": null,
+            "init": true,
+            "kw_only": false,
+            "line": 158,
+            "name": "audios"
+          }
+        ],
+        "kind": "dataclass",
+        "line": 149,
+        "options": {}
+      }
+    }
+  },
+  "source": {
+    "distribution": "diffusers",
+    "ref": "0.40.0",
+    "sha256": "49f112ce52ff6d332ab68afec01f79a53e6489b42cb69104444c98b4a2f64af8",
+    "url": "https://files.pythonhosted.org/packages/59/32/b9c6a198812e2a7d2c2828a850dba384306f9af285eac23e35e89d5b008a/diffusers-0.40.0.tar.gz"
+  }
+}
