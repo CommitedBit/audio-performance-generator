@@ -15,6 +15,10 @@ scripts/bootstrap.sh     # backend/.venv with dev extras, frontend npm ci (needs
 scripts/check.sh         # every offline check
 ```
 
+Requirements: Python 3.10+ and Node 22.22.2+ (`frontend/package.json`
+`engines`, `.nvmrc`). Below that Node, npm silently skips vite 8's native
+bundler binding and the frontend cannot build. `bootstrap.sh` checks both.
+
 | Check | Needs |
 | --- | --- |
 | backend pytest + ruff, frontend lint/build/test | nothing after bootstrap |
