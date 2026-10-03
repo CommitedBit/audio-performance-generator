@@ -35,7 +35,19 @@ commits and tagged:
   - the iCloud note
 
   Dependabot's first queue was cleared: #21 and #22 were merged, and #23–#26
-  were superseded by #29. The tag publishes the release notes from
+  were superseded by #29.
+
+**Open at hand-off: Dependabot's major-version PRs** (#31–#35). These are
+deliberately left for the next version. Each is a real migration, not a
+lockfile bump:
+- vite 8 and `@vitejs/plugin-react` 6, which must move together; treat them
+  like #29 did ESLint
+- jsdom 30
+- globals 17
+- TypeScript 7, the compiler rewrite
+
+Take them one PR per toolchain, with `scripts/check.sh` as the gate. Close
+whatever the grouped PR supersedes. The tag publishes the release notes from
 [CHANGELOG.md](CHANGELOG.md). New work branches from `main` and follows
 [docs/git-workflow.md](docs/git-workflow.md):
 - one concern per PR
