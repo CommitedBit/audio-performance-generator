@@ -21,11 +21,11 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"          # the version the images run
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - name: Install
         run: uv pip install --system -e ".[dev]"
       - name: Lint
@@ -39,8 +39,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"              # matches frontend/Dockerfile
           cache: npm
@@ -56,8 +56,8 @@ jobs:
     # box would have to compile fails here instead of mid-build on the VM.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "0.11.29"              # same uv as the image
       - run: python3 scripts/check_deps.py
@@ -70,10 +70,10 @@ jobs:
     # service restarts, and HANDOFF.md counts it as covered here.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: python3 scripts/smoke_gpu.py --dev
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smoke-results
           path: smoke-results/
@@ -81,7 +81,7 @@ jobs:
   compose:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Bash arrays, not a word-split string: each topology is its own -f list.
       - name: Validate every topology
         shell: bash
