@@ -162,9 +162,16 @@ class _DiffusersRunner:
 # at once. Each shared pipeline therefore carries its own call lock, so jobs on
 # the SAME weights serialise even with MAX_CONCURRENT_JOBS raised, while jobs on
 # different weights (the two small checkpoints) still run in parallel.
+#
+# _SHARED_LOCK guards only these dicts and is never held across a build. Each
+# checkpoint has its own build lock instead: holding one module-wide lock for
+# the whole multi-minute build made every other checkpoint's load AND unload
+# wait for it -- and an unload waits while holding that provider's load lock,
+# which stalled the idle sweep.
 _SHARED: dict[tuple[str, str, str], object] = {}
 _HOLDERS: dict[tuple[str, str, str], set[str]] = {}
 _CALL_LOCKS: dict[tuple[str, str, str], threading.Lock] = {}
+_BUILD_LOCKS: dict[tuple[str, str, str], threading.Lock] = {}
 _SHARED_LOCK = threading.Lock()
 
 
@@ -230,21 +237,35 @@ class StableAudio3Provider(Provider):
         loader = "stable-audio-3" if _official_available() else "diffusers"
         key = (f"{loader}:{self.hf_repo}", device, str(dtype))
 
-        # Held for the whole build so two providers asking for the same weights
-        # at once cannot both construct a copy.
         with _SHARED_LOCK:
-            pipe = _SHARED.get(key)
+            build_lock = _BUILD_LOCKS.setdefault(key, threading.Lock())
+        # Held for the whole build so two providers asking for the same weights
+        # at once cannot both construct a copy; other checkpoints are unaffected.
+        with build_lock:
+            with _SHARED_LOCK:
+                # Looked up and claimed in one step, so a holder unloading in
+                # between cannot free the pipeline before this one registers.
+                pipe = _SHARED.get(key)
+                if pipe is not None:
+                    self._hold(key)
             if pipe is not None:
                 log.info("%s reusing the already-loaded %s pipeline", self.id, self.model_id)
             else:
+                # Nobody holds this key while it is absent, so no unload can
+                # touch it during the build.
                 pipe = self._build_pipeline(device, dtype, loader)
-                _SHARED[key] = pipe
-                _CALL_LOCKS[key] = threading.Lock()
-            _HOLDERS.setdefault(key, set()).add(self.id)
-            self._call_lock = _CALL_LOCKS[key]
+                with _SHARED_LOCK:
+                    _SHARED[key] = pipe
+                    _CALL_LOCKS[key] = threading.Lock()
+                    self._hold(key)
 
         self._pipeline_key = key
         return pipe
+
+    def _hold(self, key) -> None:
+        """Register as a holder of `key`. Caller holds _SHARED_LOCK."""
+        _HOLDERS.setdefault(key, set()).add(self.id)
+        self._call_lock = _CALL_LOCKS[key]
 
     def _build_pipeline(self, device: str, dtype, loader: str):
         if not _flash_attn_present():

@@ -58,6 +58,7 @@ def clean_state(tmp_path, monkeypatch):
     stable_audio._SHARED.clear()
     stable_audio._HOLDERS.clear()
     stable_audio._CALL_LOCKS.clear()
+    stable_audio._BUILD_LOCKS.clear()
 
     yield
 
