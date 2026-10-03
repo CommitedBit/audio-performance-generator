@@ -90,6 +90,7 @@ class RequiredHealth(BaseModel):
 class HealthResponse(BaseModel):
     """Liveness plus detail. Always HTTP 200: readiness is /health/ready."""
     status: Literal["ok", "stub", "degraded", "down"]
+    version: str                                       # app.__version__ of the answering service
     device: str
     providers_available: int
     providers_total: int

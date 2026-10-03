@@ -1,0 +1,19 @@
+name: Feature or foundation work
+description: Something new, or groundwork for it
+labels: [enhancement]
+body:
+  - type: textarea
+    id: why
+    attributes:
+      label: The problem or need
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+  - type: textarea
+    id: gpu
+    attributes:
+      label: Does it need the GPU VM to verify?
+      description: If so, say what has to be measured there (load time, VRAM, audio quality).

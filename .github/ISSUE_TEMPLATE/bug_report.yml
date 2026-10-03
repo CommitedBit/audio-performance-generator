@@ -1,0 +1,42 @@
+name: Bug report
+description: Something behaves wrongly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Requests, prompts or clicks. Include job ids and provider ids if you have them.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown on the Settings page (UI and server) and in GET /health.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: topology
+    attributes:
+      label: Where it runs
+      options:
+        - GPU VM, unified (compose.gpu.yml)
+        - GPU VM, split (compose.gpu.yml + compose.gpu.split.yml)
+        - Dev stub stack (docker-compose.yml)
+        - Vite dev server against the GPU VM
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and health
+      description: Relevant `docker compose logs`, and the output of /health and /health/ready.
+      render: text

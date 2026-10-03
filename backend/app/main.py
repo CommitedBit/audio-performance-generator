@@ -22,8 +22,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
+from . import __version__, storage
 from . import health as health_status
-from . import storage
 from .auth import api_key_middleware
 from .config import get_settings
 from .gpu_lock import gpu_slot
@@ -82,7 +82,7 @@ async def _sweep_idle_models() -> None:
 
 app = FastAPI(
     title="Audio Performance Generator API",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 app.middleware("http")(api_key_middleware)
@@ -116,6 +116,7 @@ def health():
     overall, capabilities = health_status.summarize(summaries)
     return {
         "status": overall,
+        "version": __version__,
         "device": settings.device,
         "providers_available": sum(p["available"] for p in summaries),
         "providers_total": len(summaries),

@@ -25,6 +25,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,21 @@ TOPOLOGIES = {
     "split": ["compose.gpu.yml", "compose.gpu.split.yml"],
 }
 PLATFORM = "x86_64-manylinux_2_28"
+# An index that is down answers with these. uv retries each request itself; a
+# whole compile is retried after a pause before the index is declared
+# unreachable. Without this a 503 from download.pytorch.org surfaced as "the
+# image would build a package from source" -- a failure about the code that was
+# really about the network.
+NETWORK_ERRORS = ("Failed to fetch", "Request failed after", "HTTP status server error",
+                  "error sending request", "operation timed out", "Connection reset")
+COMPILE_ATTEMPTS = 3
+RETRY_PAUSE = 20.0
+
+
+class IndexUnreachable(Exception):
+    """A package index could not be reached; says nothing about the pins."""
+
+
 # Pure-Python packages published only as sdists; building them needs no
 # toolchain. Anything else that would need building is an error.
 SDIST_ALLOWED = ["antlr4-python3-runtime"]
@@ -92,8 +108,16 @@ def _compile(inputs: Path, overrides: Path, out: Path, torch_index: str, python:
     ]
     if wheel_only:
         cmd += ["--only-binary", ":all:", *[a for p in SDIST_ALLOWED for a in ("--no-binary", p)]]
-    r = subprocess.run(cmd, cwd=BACKEND, capture_output=True, text=True)
-    return r.returncode == 0, (r.stderr or r.stdout).strip()
+    for attempt in range(1, COMPILE_ATTEMPTS + 1):
+        r = subprocess.run(cmd, cwd=BACKEND, capture_output=True, text=True)
+        err = (r.stderr or r.stdout).strip()
+        if r.returncode == 0 or not any(marker in err for marker in NETWORK_ERRORS):
+            return r.returncode == 0, err
+        if attempt < COMPILE_ATTEMPTS:
+            print(f"      index unreachable (attempt {attempt}/{COMPILE_ATTEMPTS}); retrying in "
+                  f"{RETRY_PAUSE * attempt:.0f}s", file=sys.stderr)
+            time.sleep(RETRY_PAUSE * attempt)
+    raise IndexUnreachable(err)
 
 
 def _pins(path: Path) -> dict[str, str]:
@@ -126,11 +150,16 @@ def resolve(torch_index: str, python: str, torch_pin: str, requirements: str, ex
         # them outright first, and an override alone never adds a package.
         inputs.write_text("\n".join([project, f"-r {BACKEND / requirements}", *torch_pin.split()]) + "\n")
 
-        ok, err = _compile(inputs, overrides, tmp / "image.txt", torch_index, python, wheel_only=False)
-        if not ok:
-            return False, f"does not resolve:\n{err}"
-        image = _pins(tmp / "image.txt")
-        ok, err = _compile(inputs, overrides, tmp / "wheels.txt", torch_index, python, wheel_only=True)
+        try:
+            ok, err = _compile(inputs, overrides, tmp / "image.txt", torch_index, python, wheel_only=False)
+            if not ok:
+                return False, f"does not resolve:\n{err}"
+            image = _pins(tmp / "image.txt")
+            ok, err = _compile(inputs, overrides, tmp / "wheels.txt", torch_index, python, wheel_only=True)
+        except IndexUnreachable as exc:
+            return False, ("a package index stayed unreachable after "
+                           f"{COMPILE_ATTEMPTS} attempts -- a network problem, not a pin problem; "
+                           f"re-run the check:\n{exc}")
         wheels = _pins(tmp / "wheels.txt") if ok else {}
 
     if not ok or wheels != image:

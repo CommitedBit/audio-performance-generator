@@ -119,6 +119,14 @@ export default function SettingsPage() {
         </p>
       )}
 
+      <p className="muted small">
+        UI v{__APP_VERSION__}
+        {health?.version && <> · server v{health.version}</>}
+        {health?.version && health.version !== __APP_VERSION__ && (
+          <span className="warn"> · versions differ: rebuild or redeploy so they match</span>
+        )}
+      </p>
+
       {health && (
         <p className="muted">
           status <strong>{health.status}</strong> · device <strong>{health.device}</strong> ·{' '}
