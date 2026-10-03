@@ -56,6 +56,11 @@ SPEECH_INLINE_WAIT = 180.0
 # Floor on the idle sweep's interval. A module constant so tests can shorten it.
 SWEEP_MIN_INTERVAL = 30.0
 
+# job.progress at each phase of a generation. These mark WHERE a job is, not
+# how much of the model's work is done -- that would need hooks into each model
+# library, verifiable only on the GPU. The phase itself is in job.message.
+PROGRESS = {"loading": 0.1, "generating": 0.2, "saving": 0.9}
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -156,14 +161,21 @@ def _run_generation(provider, req: GenerateRequest, kind: str):
         slot = contextlib.nullcontext() if provider.remote else gpu_slot(
             on_wait=lambda: setattr(job, "message", "waiting for the GPU (another service is generating)"))
         with slot:
-            job.message = f"generating with {provider.id}"
             # Held for the whole generation so the idle sweeper cannot unload
             # the model while this job is still running on it.
             # Local stacks share PyTorch's global generator; a seeded job holds
             # it exclusively so a concurrent job cannot disturb its draws.
             rng = contextlib.nullcontext() if provider.remote else rng_scope(seeded=req.seed is not None)
             with rng, provider.in_use():
+                # A first load takes minutes (and may download weights), so it
+                # is its own phase. It used to hide behind "generating", set
+                # before the load even started.
+                if not provider.remote and not provider.loaded:
+                    job.message, job.progress = f"loading {provider.id}", PROGRESS["loading"]
+                    provider.load()
+                job.message, job.progress = f"generating with {provider.id}", PROGRESS["generating"]
                 result = provider.generate(req)
+        job.message, job.progress = "saving", PROGRESS["saving"]
 
         # Fail loudly on silent/degenerate output rather than storing a clip of
         # nothing and reporting success. Only meaningful for WAV; the cloud
