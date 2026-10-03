@@ -340,7 +340,7 @@ it is uninterruptible, so `DELETE` returns `409` rather than pretending.
 
 ## Developing against the remote box
 
-The frontend needs Node 22.22.2 or newer (`.nvmrc`; `frontend/package.json`
+The frontend needs Node 22.22.2 or newer (the floor is in `frontend/package.json`
 `engines`).
 
 ```bash
@@ -353,10 +353,10 @@ Vite proxies `/api` there, matching what nginx does in the container, so
 
 ## Tests
 
-Install the dependencies once:
+Set up once (Python 3.10+, Node 22.22.2+; see AGENTS.md):
 
 ```bash
-(cd backend && uv pip install -e ".[dev]") && npm --prefix frontend ci
+scripts/bootstrap.sh
 ```
 
 Then run every check before you push:

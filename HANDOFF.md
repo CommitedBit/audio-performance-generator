@@ -90,8 +90,11 @@ attempt to merge was blocked as "merge without review".
    - a Python lock file
    - frontend types generated from OpenAPI
 4. **Leave GPU-dependent work** (M3 sizing and VRAM-aware loading) until the
-   owner has run `scripts/smoke_gpu.py` on the VM and shared its
-   `results.json`.
+   owner has run `scripts/smoke_gpu.py` on the VM. The owner posts that run's
+   `report.txt` and `results.json` in a GitHub issue titled **"M2 results"**;
+   `smoke-results/` is gitignored, so the issue is where they live. Start M3
+   only from that issue. Beyond Start here and the backlog below, take on
+   GPU-free parts of M4/M5 only with the owner's go-ahead.
 
 ## What is verified
 
@@ -166,8 +169,9 @@ attempt to merge was blocked as "merge without review".
 The full approved plan, with rationale, is in [docs/plan.md](docs/plan.md).
 The essentials are below. Items marked **[GPU]** need the VM's results first.
 
-- **M2. The first GPU run [GPU, owner].** Run `scripts/smoke_gpu.py` and keep
-  `smoke-results/*/results.json`. Its cold, warm and load timings and its VRAM
+- **M2. The first GPU run [GPU, owner].** Run `scripts/smoke_gpu.py`, then
+  post `smoke-results/<timestamp>/report.txt` and `results.json` in a GitHub
+  issue titled "M2 results". Its cold, warm and load timings and its VRAM
   peaks drive M3. It may also force the split topology (`--split`). Then
   confirm that idle unloading frees VRAM with a second pass:
   `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --no-build --quick --idle-check`.
@@ -217,9 +221,8 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
 
 ## Environment notes
 
-- **On the owner's Mac, `/usr/bin/git` is blocked** by an unaccepted Xcode
-  licence. `/Library/Developer/CommandLineTools/usr/bin/git` works; pushes
-  authenticate through `gh`. Don't accept the licence on the owner's behalf.
+- **Git on the owner's Mac works normally.** The Xcode licence that once
+  blocked `/usr/bin/git` has been accepted. Pushes authenticate through `gh`.
 - **The canonical checkout is `~/dev/Story`, outside iCloud.** The earlier
   one, `~/Desktop/Story`, was iCloud-synced, and mid-sync git rewrites left
   `name 2.ext` conflict copies that pytest then collected. Use `~/dev/Story`;
@@ -232,6 +235,20 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
   on purpose.
 - **Model weights** live in a named volume; generated audio lives under
   `DATA_PATH` (default `/srv/story/data`).
+
+## Owner: next
+
+1. **Upgrade Node** to 22.22.2+ (`nvm install 22`, or nodejs.org). Then run
+   `scripts/bootstrap.sh` and `scripts/check.sh` in `~/dev/Story`.
+2. **For the GPU run:**
+   - create `.env` from `.env.example` and set `HF_TOKEN`
+   - accept the Stable Audio 3 licence on Hugging Face
+   - run M2 (above)
+   - post the results in an "M2 results" issue
+3. **Delete `~/Desktop/Story`** once `~/dev/Story` checks out.
+4. **Decide two repository settings** (docs/git-workflow.md,
+   "Repository settings"): turn on Dependabot security alerts, and protect
+   `v*` tags with a ruleset.
 
 ## Open questions for the owner
 

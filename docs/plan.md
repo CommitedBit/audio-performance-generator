@@ -31,6 +31,8 @@ That shapes the plan:
 
 ## M0 — user steps first
 
+> Done; historical. Don't run these commands.
+
 ```bash
 sudo xcodebuild -license accept
 git fetch && git reset origin/fix/make-it-run && git status

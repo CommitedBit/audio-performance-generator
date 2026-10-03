@@ -114,3 +114,8 @@ and the GPU run.
   @rolldown/binding-...". `scripts/bootstrap.sh` checks the version.
 - **A file list without a trailing newline** loses its last line in
   `while read` loops.
+- **Unquoted heredocs run backticks.** In zsh or bash, `<<EOF` executes
+  anything in backticks inside the text. Writing prose that named
+  `python3 scripts/smoke_gpu.py` this way once ran the GPU smoke script by
+  accident. Quote the delimiter (`<<'EOF'`), or write files with an editor
+  tool.

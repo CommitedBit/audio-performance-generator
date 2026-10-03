@@ -15,21 +15,28 @@ scripts/bootstrap.sh     # backend/.venv with dev extras, frontend npm ci (needs
 scripts/check.sh         # every offline check
 ```
 
-Requirements: Python 3.10+ and Node 22.22.2+ (`frontend/package.json`
-`engines`, `.nvmrc`). Below that Node, npm silently skips vite 8's native
-bundler binding and the frontend cannot build. `bootstrap.sh` checks both.
+Requirements:
+- **Python 3.10+.**
+- **Node 22.22.2+ on the 22 line, or 24.15+ / 26+.** The floor is in
+  `frontend/package.json` `engines`; `.nvmrc` selects the Node 22 line.
+  Below the floor, npm silently skips vite 8's native bundler binding, and
+  the frontend cannot build. `bootstrap.sh` checks both versions.
+- **`uv`** for `check_deps.py`.
 
 | Check | Needs |
 | --- | --- |
 | backend pytest + ruff, frontend lint/build/test | nothing after bootstrap |
 | `docker compose config` (all topologies) | Docker. Skipped with a note when it is absent |
-| `scripts/snapshot_contracts.py --check` | network (`scripts/check.sh --full`) |
-| `scripts/check_deps.py` | network and Docker (`--full`). Skipped without Docker; CI's `deps` job runs it |
+| `scripts/snapshot_contracts.py --check` | network (`scripts/check.sh --full`). **CI does not run it**: run it whenever a pin or a provider's model-library call changes |
+| `scripts/check_deps.py` | network, Docker and `uv` (`--full`). Skipped without Docker or `uv`; CI's `deps` job runs it |
 | `scripts/smoke_gpu.py --dev` | Docker (`--full`). Skipped when absent; CI's `e2e` job always runs it |
 | `scripts/smoke_gpu.py` on real models | the owner's GPU VM; agents cannot run it |
 
 When a check cannot run where you are, say so in the PR. CI runs all of them
-except the GPU run.
+except the contract-snapshot check (`snapshot_contracts.py --check`, which
+compares against upstream sources over the network) and the GPU run. CI's
+`backend` job still runs `tests/test_contracts.py` against the committed
+snapshots.
 
 ## Non-negotiables
 

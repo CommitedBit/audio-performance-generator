@@ -54,10 +54,11 @@ else
 fi
 
 if [ "$FULL" = 1 ]; then
-  if [ "$HAVE_DOCKER" = 1 ]; then
+  # check_deps.py needs docker compose (to read the build args) and uv (to resolve).
+  if [ "$HAVE_DOCKER" = 1 ] && command -v uv >/dev/null 2>&1; then
     run "dependency resolution"  python3 scripts/check_deps.py
   else
-    printf '\nskip  dependency resolution: it reads build args through docker compose (CI deps runs it)\n'
+    printf '\nskip  dependency resolution: needs docker and uv (CI deps runs it)\n'
   fi
   run "contract snapshots"     python3 scripts/snapshot_contracts.py --check
   if [ "$HAVE_DOCKER" = 1 ]; then
