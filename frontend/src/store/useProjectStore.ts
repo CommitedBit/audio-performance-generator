@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { newId } from '../lib/id';
 import type { Project, Clip, TrackType } from '../types/timeline';
 
 export interface ProjectState {
@@ -32,7 +33,7 @@ const useProjectStore = create<ProjectState>(set => ({
       const clipsForTrack = state.project.clips.filter(c => c.trackId === trackId);
       const start = clipsForTrack.reduce((acc, c) => Math.max(acc, c.start + c.duration), 0);
       const clip: Clip = {
-        id: crypto.randomUUID(),
+        id: newId(),
         trackId,
         blobId,
         start,

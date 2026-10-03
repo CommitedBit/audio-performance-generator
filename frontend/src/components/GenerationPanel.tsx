@@ -4,9 +4,7 @@ import {
   type Capability,
   type JobInfo,
   type ProviderInfo,
-  fetchAudio,
-  generate,
-  waitForJob,
+  generateAudio,
 } from '../api/client';
 import { allFor, useModels } from '../hooks/useModels';
 import { saveBlob } from '../hooks/useIndexedAudio';
@@ -114,7 +112,9 @@ export default function GenerationPanel() {
     setJob(null);
 
     try {
-      let current = await generate(
+      // An abort (the panel unmounting) abandons the result, and generateAudio
+      // cancels the server job with it rather than leave it to hold the GPU.
+      const { job: finished, blob } = await generateAudio(
         capability,
         {
           prompt,
@@ -122,21 +122,14 @@ export default function GenerationPanel() {
           voiceId: capability === 'voice' ? voiceId : undefined,
           seconds: secondsSpec ? seconds : undefined,
         },
-        ac.signal
+        ac.signal,
+        setJob
       );
-      setJob(current);
-
-      // Voice returns finished work; music and sfx come back queued.
-      if (current.status !== 'done') {
-        current = await waitForJob(current, setJob, ac.signal);
-      }
-
-      const blob = await fetchAudio(current);
       const blobId = await saveBlob(blob);
 
       // Trust the server's measured duration; fall back to decoding only if it
       // is missing, since decoding costs a full pass over the audio.
-      let duration = Number(current.meta?.duration ?? 0);
+      let duration = Number(finished.meta?.duration ?? 0);
       if (!duration || Number.isNaN(duration)) {
         const ctx = new AudioContext();
         try {
