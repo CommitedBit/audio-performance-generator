@@ -159,10 +159,21 @@ class JobQueue:
         return {"max_concurrent": self._max_concurrent, "tracked": len(self._jobs), "by_status": counts}
 
     def _evict(self) -> None:
-        while len(self._order) > self._retain:
-            old = self._order.pop(0)
-            job = self._jobs.get(old)
-            if job and job.status in {JobStatus.QUEUED, JobStatus.RUNNING}:
-                self._order.append(old)     # never evict live work
-                return
-            self._jobs.pop(old, None)
+        """Drop the oldest FINISHED jobs until at most `retain` remain.
+
+        Live jobs are never evicted, and nothing is reordered. This used to
+        move a live job from the head to the end and stop: the running job
+        then listed as the newest, and one job beyond `retain` was kept.
+        """
+        excess = len(self._order) - self._retain
+        if excess <= 0:
+            return
+        kept: list[str] = []
+        for job_id in self._order:
+            job = self._jobs.get(job_id)
+            if excess > 0 and (job is None or job.status not in {JobStatus.QUEUED, JobStatus.RUNNING}):
+                self._jobs.pop(job_id, None)
+                excess -= 1
+            else:
+                kept.append(job_id)
+        self._order = kept

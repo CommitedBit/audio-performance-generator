@@ -56,6 +56,12 @@ def _copy_versioned(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _set_unreleased(changelog: Path, body: str) -> None:
+    """Replace whatever [Unreleased] holds, so a test does not depend on it."""
+    text = changelog.read_text()
+    changelog.write_text(re.sub(r"(?ms)^## \[Unreleased\]\n.*?(?=^## \[)", f"## [Unreleased]\n{body}\n", text, count=1))
+
+
 def _bump(root: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(ROOT / "scripts/bump_version.py"), *args, "--root", str(root)],
                           capture_output=True, text=True)
@@ -69,7 +75,7 @@ def _next_minor() -> str:
 def test_bump_moves_every_field_and_cuts_the_changelog(tmp_path):
     root = _copy_versioned(tmp_path)
     changelog = root / "CHANGELOG.md"
-    changelog.write_text(changelog.read_text().replace("## [Unreleased]\n", "## [Unreleased]\n\n### Fixed\n- a thing\n", 1))
+    _set_unreleased(changelog, "\n### Fixed\n- a thing\n")
     new = _next_minor()
 
     r = _bump(root, new, "--date", "2030-01-02")
@@ -88,7 +94,7 @@ def test_bump_moves_every_field_and_cuts_the_changelog(tmp_path):
 def test_bump_refuses_mistakes(tmp_path, version, unreleased, error):
     root = _copy_versioned(tmp_path)
     changelog = root / "CHANGELOG.md"
-    changelog.write_text(changelog.read_text().replace("## [Unreleased]\n", f"## [Unreleased]\n{unreleased}", 1))
+    _set_unreleased(changelog, unreleased)
     before = {rel: (root / rel).read_text() for rel in VERSIONED}
 
     r = _bump(root, version or _next_minor())
