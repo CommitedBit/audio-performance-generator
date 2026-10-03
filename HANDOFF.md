@@ -1,6 +1,6 @@
 # Handoff: state of the project and what comes next
 
-Written 2026-10-03, for release **v0.1.1**: the first stable foundation (v0.1.0) plus the fixes found at hand-off. Read
+Written 2026-10-03, for release **v0.2.0**: the foundation (v0.1.x) plus the tooling an agent needs to take over. Read
 [CLAUDE.md](CLAUDE.md) first for the architecture, invariants and checks.
 
 ## The project and its owner's decisions
@@ -23,9 +23,31 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is release **v0.1.1**: v0.1.0 (PRs #4–#16) plus the hand-off fixes
-(#17–#19) and the version bump (#20). All of them were merged bottom-up with
-merge commits and tagged. The tag publishes the release notes from
+`main` is release **v0.2.0**. All three releases were merged with merge
+commits and tagged:
+- **v0.1.0** (PRs #4–#16): the foundation.
+- **v0.1.1** (#17–#20): the fixes found at hand-off.
+- **v0.2.0** (#21, #22, #27–#30 and the release PR):
+  - `smoke_gpu.py --idle-check`
+  - CI covers the restart round
+  - the frontend toolchain on ESLint 10, react-hooks 7 and vitest 5
+  - `scripts/bootstrap.sh`
+  - the iCloud note
+
+  Dependabot's first queue was cleared: #21 and #22 were merged, and #23–#26
+  were superseded by #29.
+
+**Open at hand-off: Dependabot's major-version PRs** (#31–#35). These are
+deliberately left for the next version. Each is a real migration, not a
+lockfile bump:
+- vite 8 and `@vitejs/plugin-react` 6, which must move together; treat them
+  like #29 did ESLint
+- jsdom 30
+- globals 17
+- TypeScript 7, the compiler rewrite
+
+Take them one PR per toolchain, with `scripts/check.sh` as the gate. Close
+whatever the grouped PR supersedes. The tag publishes the release notes from
 [CHANGELOG.md](CHANGELOG.md). New work branches from `main` and follows
 [docs/git-workflow.md](docs/git-workflow.md):
 - one concern per PR
@@ -59,6 +81,23 @@ The PRs that make up v0.1.0:
 **The owner merges.** Agents open PRs and report CI. A previous agent's
 attempt to merge was blocked as "merge without review".
 
+## Start here (Codex)
+
+1. **Set up and check.** Run `scripts/bootstrap.sh`, then `scripts/check.sh`;
+   everything should pass. AGENTS.md lists which checks need network, Docker
+   or the GPU VM; anything you cannot run, say so in the PR.
+2. **Review before changing anything.** Follow the review priorities below:
+   #12 (the playback engine) first, then #10 (the contract-test machinery).
+   Report findings with evidence.
+3. **Foundation work that needs no GPU,** from the backlog below, one PR each:
+   - job state that survives a restart
+   - retention for generated audio
+   - a Python lock file
+   - frontend types generated from OpenAPI
+4. **Leave GPU-dependent work** (M3 sizing and VRAM-aware loading) until the
+   owner has run `scripts/smoke_gpu.py` on the VM and shared its
+   `results.json`.
+
 ## What is verified
 
 - **Backend:** 189 pytest tests, no GPU or torch needed. They cover the API end
@@ -68,7 +107,7 @@ attempt to merge was blocked as "merge without review".
   stall regressions, contract signatures, default drift, and the smoke
   script's `--idle-check` verdicts against a fake stack. Every regression
   test was mutation-checked: re-breaking the fix makes it fail.
-- **Frontend:** 99 vitest tests (client, store, trim and schedule math,
+- **Frontend:** 103 vitest tests (client, store, trim and schedule math,
   engine, panel, timeline). Lint and build pass.
 - **Dependencies:** all three GPU dependency sets resolve wheel-only for
   x86_64/py3.12/cu128, with the torch pins honoured.
@@ -190,6 +229,7 @@ The essentials are below. Items marked **[GPU]** need the VM's results first.
   creates `name 2.ext` conflict copies when git rewrites files mid-sync, and
   pytest then collects stale `test_* 2.py` files. Work outside iCloud; see
   docs/git-workflow.md.
+- **A fresh checkout is set up by `scripts/bootstrap.sh`.**
 - **No global git identity is set** on that Mac. Local git setup is
   described in docs/git-workflow.md, under "Local environment notes".
 - **The VM** is reached with `DOCKER_CONTEXT=gpu`. All ports bind to loopback

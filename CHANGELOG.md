@@ -8,6 +8,8 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
 ### Changed
 - **The frontend lint toolchain moves to ESLint 10** (`eslint` 10,
   `@eslint/js` 10, `eslint-plugin-react-hooks` 7) in one step, replacing three
@@ -20,9 +22,13 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   - `useModels` raises `loading` in `refresh()`
 
   The behaviour is unchanged. New tests pin it, and they pass on the old code
-  too. Dependabot now groups ESLint packages so they arrive together.
+  too. Dependabot now groups ESLint packages so they arrive together. #29
 - **vitest 5** (from Dependabot #25). It is folded in here because both
   upgrades rewrite `package-lock.json`. All 103 frontend tests run under it.
+  #29
+- **GitHub Actions moved to their current major versions,** clearing CI's
+  Node 20 deprecation warnings, and **eight frontend dependencies** received
+  minor and patch updates (Dependabot). #21, #22
 
 ### Added
 - **`scripts/bootstrap.sh`: one command from a fresh checkout to a working
@@ -30,7 +36,7 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   says which checks need network, Docker or the GPU VM.
   `scripts/check.sh` skips the Docker checks with a note when Docker is
   absent, as in most agent sandboxes, rather than failing; CI still runs
-  them.
+  them. #30
 - **`scripts/smoke_gpu.py --idle-check` (opt-in) checks that idle unloading
   frees VRAM.** It restarts the model services so the baseline comes from
   processes that have never loaded a model, waits for the idle sweep to unload
@@ -42,12 +48,12 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   300 s it refuses to start. It has not run on the GPU, so neither allowance
   is measured. With `--dev` it checks the unload only and reports VRAM as not
   measured, for which `docker-compose.yml` now passes `MODEL_IDLE_TIMEOUT`
-  through to the stubs.
+  through to the stubs. #27
 - **A model service's `/health` reports its own PyTorch allocations**
   (`gpu.torch_allocated_gb`, `gpu.torch_reserved_gb`) beside the card's free
   and total VRAM. `--idle-check` reads them: after an unload, `nvidia-smi`
   still shows the kernels a process keeps, and Stable Audio 3 small left
-  resident would fit inside that.
+  resident would fit inside that. #27
 
 ### Fixed
 - **`scripts/smoke_gpu.py` read the gateway's cached view of a model service
@@ -55,14 +61,14 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   a run with a different `MODEL_IDLE_TIMEOUT`), the gateway still reported
   the old process: ready, with its models loaded. A run chained straight
   after another then failed every submit with a 502. The script now waits the
-  cache out after `up` and after every restart.
+  cache out after `up` and after every restart. #27
 - **CI's e2e job and `scripts/check.sh --full` skipped the smoke script's
   restart round** (`--quick`), while HANDOFF.md counted a restart as covered.
-  Both now run it.
+  Both now run it. #27
 - **docs/plan.md and CI named a shell-script smoke runner that never
   existed;** they now name `scripts/smoke_gpu.py`. docs/plan.md's M2 also
   promised an idle-unload VRAM check the script did not have; it now points
-  at `--idle-check`.
+  at `--idle-check`. #27
 
 ## [0.1.1] - 2026-10-03
 

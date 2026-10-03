@@ -404,7 +404,7 @@ Voice cloning: only clone a voice you have permission to use.
 
 ## Status
 
-Version **0.1.1**: the first stable foundation (0.1.0) plus the fixes found at hand-off. See
+Version **0.2.0**: the foundation (0.1.x) plus the tooling an agent needs to take over. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and [HANDOFF.md](HANDOFF.md)
 for the current state and what comes next.
 
