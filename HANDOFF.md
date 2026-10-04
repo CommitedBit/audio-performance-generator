@@ -24,10 +24,11 @@ Decisions already made by the owner. Don't relitigate them without asking:
 
 ## Repository state
 
-`main` is always the latest release; the newest section of
-[CHANGELOG.md](CHANGELOG.md) names it. v0.3.0 is the unified final version of
-this work, and the 0.3.z releases after it correct and add documentation and
-tooling. Every release was merged with merge commits and tagged, and each tag
+The latest release is the newest versioned section of
+[CHANGELOG.md](CHANGELOG.md), and the newest `v*` tag. `main` can be ahead of
+it: merged work waits under `[Unreleased]` until the owner's next release PR.
+v0.3.0 is the unified final version of this work, and the 0.3.z releases
+after it correct and add documentation and tooling. Every release was merged with merge commits and tagged, and each tag
 published its notes from the CHANGELOG:
 - **v0.1.0** (PRs #4–#16): the foundation.
 - **v0.1.1** (#17–#20): the fixes found at hand-off.

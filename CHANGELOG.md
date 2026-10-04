@@ -33,7 +33,12 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
     releases, repository settings and the GPU run.
   - HANDOFF.md's "Start here" matches the kickoff prompt.
   - HANDOFF.md and the README no longer name a version that goes stale.
+    They name the latest release by the newest versioned CHANGELOG section,
+    and say `main` may be ahead of it.
   - The M2 idle-check pass names `--split` for the split topology.
+  - Agents run Docker only against a verified local daemon. Unsetting
+    `DOCKER_CONTEXT` could still leave a saved `gpu` default or a
+    `DOCKER_HOST` pointing at the VM.
 
 ## [0.3.1] - 2026-10-03
 

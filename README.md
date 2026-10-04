@@ -419,8 +419,9 @@ Voice cloning: only clone a voice you have permission to use.
 
 ## Status
 
-The current version is the newest section of [CHANGELOG.md](CHANGELOG.md).
-0.3.0 is the unified final version of this work; the 0.3.z releases after it
+The latest release is the newest versioned section of
+[CHANGELOG.md](CHANGELOG.md); anything under `[Unreleased]` is on `main` but
+not yet released. 0.3.0 is the unified final version of this work; the 0.3.z releases after it
 correct and add documentation and tooling. [HANDOFF.md](HANDOFF.md) has the
 current state and what comes next.
 

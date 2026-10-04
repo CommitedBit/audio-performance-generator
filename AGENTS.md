@@ -47,6 +47,18 @@ snapshots.
   release, change repository settings or branch protection, or run
   `scripts/smoke_gpu.py` against the GPU VM. `main` requires no approvals, so
   this rule is what keeps merging with the owner.
+- **Run Docker only against a local daemon.** The `gpu` context is the
+  owner's VM; never use it. Unsetting `DOCKER_CONTEXT` is not enough:
+  `docker context use` saves a default, and `DOCKER_HOST` overrides any
+  context. Before any Docker command:
+  - unset `DOCKER_HOST`
+  - set a local context explicitly, for example
+    `export DOCKER_CONTEXT=desktop-linux` on the owner's Mac (`default` on
+    most Linux hosts)
+  - check that `docker context inspect --format '{{.Endpoints.docker.Host}}'`
+    prints a `unix://` socket
+
+  If there is no local daemon, skip the Docker checks and say so.
 - **One concern per PR, branched from `main`.** Follow
   [docs/git-workflow.md](docs/git-workflow.md): branch names, commits, merge
   commits, versioning and releases. Add a `CHANGELOG.md` `[Unreleased]` line
