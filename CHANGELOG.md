@@ -16,11 +16,15 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   `results.json`, the idle-check pass, and listening notes.
 - **README:** a CI badge, and a "New here?" pointer to HANDOFF.md, AGENTS.md
   and the kickoff prompt.
+- **`scripts/smoke_gpu.py --out DIR`** writes a run to DIR instead of a new
+  `smoke-results/<timestamp>/`. It refuses a DIR that already exists.
 
 ### Fixed
 - **`scripts/check.sh --full` deleted all of `smoke-results/`,** including any
-  earlier GPU runs, which are not in git. It now removes only the run it
-  started.
+  GPU runs, which are not in git. Its dev run now writes to a directory of its
+  own (`--out`). Only that directory is removed, and only when the run passes;
+  a failed run's results stay, and their path is printed. Tests run the real
+  script against stub tools.
 - **README:** the intro called ElevenLabs an "optional fallback". It's used
   only when picked; it stands in automatically only if `ALLOW_CLOUD_DEFAULT=1`
   opts in.

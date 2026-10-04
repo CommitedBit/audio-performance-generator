@@ -43,11 +43,6 @@ published its notes from the CHANGELOG:
   - one canonical checkout outside iCloud
 - **v0.3.1** (#39 and its release PR): documentation and tooling corrections
   found by a fresh-clone audit
-- **v0.3.2** (#41 and its release PR):
-  - the Codex kickoff prompt, [docs/codex-kickoff.md](docs/codex-kickoff.md)
-  - the "M2 GPU results" issue form
-  - the README's "New here?" pointers
-  - `scripts/check.sh --full` no longer deletes earlier smoke results
 
 Nothing was pending at v0.3.0 or at any release since. Every Dependabot PR was
 merged or superseded:
@@ -119,12 +114,13 @@ The ready-made first message for a coding agent is in
 
 ## What is verified
 
-- **Backend:** 189 pytest tests, no GPU or torch needed. They cover the API end
+- **Backend:** 196 pytest tests, no GPU or torch needed. They cover the API end
   to end through the job queue, gateway routing and readiness, provider
   lifecycle and lock behaviour, the job lanes, the RNG lock, cross-process GPU
   slots, the ElevenLabs credential gate, the Stable Audio 3 shared pipeline,
-  stall regressions, contract signatures, default drift, and the smoke
-  script's `--idle-check` verdicts against a fake stack. Every regression
+  stall regressions, contract signatures, default drift, the smoke
+  script's `--idle-check` verdicts against a fake stack, and
+  `scripts/check.sh --full` removing only its own dev run. Every regression
   test was mutation-checked: re-breaking the fix makes it fail.
 - **Frontend:** 103 vitest tests (client, store, trim and schedule math,
   engine, panel, timeline). Lint and build pass.

@@ -78,7 +78,8 @@ request goes through `docker compose exec`. The steps:
    length, and not be silent. The script also records each model's time and
    peak VRAM.
 
-Everything lands in `smoke-results/<timestamp>/`: the clips, `report.txt`, and
+Everything lands in `smoke-results/<timestamp>/` (or the new directory
+`--out DIR` names): the clips, `report.txt`, and
 `results.json`, which holds the timings and VRAM peaks used for model sizing.
 On failure the compose logs are saved there too. Listen to the clips:
 automated checks can tell sound from silence, but not good from bad.

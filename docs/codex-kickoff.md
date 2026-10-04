@@ -89,7 +89,7 @@ report as a ready-to-paste title and body.
 
 ## Step 0: set up and confirm green
 
-Run `scripts/bootstrap.sh`, then `scripts/check.sh`. Expect 189 backend tests
+Run `scripts/bootstrap.sh`, then `scripts/check.sh`. Expect 196 backend tests
 and 103 frontend tests to pass. Report the counts, and any check that was
 skipped or failed, before going further.
 
