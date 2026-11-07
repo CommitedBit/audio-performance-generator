@@ -44,10 +44,16 @@ published its notes from the CHANGELOG:
   - one canonical checkout outside iCloud
 - **v0.3.1** (#39 and its release PR): documentation and tooling corrections
   found by a fresh-clone audit
+- **v0.3.2** (#41, #46 and its release PR):
+  - the handoff kit: `docs/codex-kickoff.md`, the "M2 GPU results" issue
+    form, and the owner's jobs in AGENTS.md
+  - `check.sh --full` no longer deletes GPU results; `smoke_gpu.py --out`
+  - frontend minor and patch dependency updates
 
 Nothing was pending at v0.3.0 or at any release since. Every Dependabot PR was
 merged or superseded:
-#23–#26 by #29, and #31–#33 and #35 by #37. TypeScript 7 is skipped on
+#23–#26 by #29, #31–#33 and #35 by #37, and #42–#45 by newer group updates,
+ending in #46. TypeScript 7 is skipped on
 purpose until `typescript-eslint` supports it; see `.github/dependabot.yml`.
 
 New work branches from `main` and follows
