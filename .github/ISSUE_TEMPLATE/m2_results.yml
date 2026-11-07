@@ -1,0 +1,62 @@
+name: M2 GPU results
+description: Post the first GPU smoke run (scripts/smoke_gpu.py) so GPU-dependent work (M3) can start
+title: "M2 results"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Results from `scripts/smoke_gpu.py` on the GPU VM. `smoke-results/` is
+        gitignored, so this issue is where the numbers live. HANDOFF.md, M2,
+        describes the run. Paste the files as they are. Neither contains
+        secrets, but check before posting.
+  - type: input
+    id: version
+    attributes:
+      label: Version and commit
+      description: The output of `git describe --tags` in the checkout you ran from.
+      placeholder: v0.3.2
+    validations:
+      required: true
+  - type: dropdown
+    id: topology
+    attributes:
+      label: Topology
+      options:
+        - unified (compose.gpu.yml)
+        - split (compose.gpu.yml + compose.gpu.split.yml)
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: report.txt (first run)
+      description: smoke-results/<timestamp>/report.txt from `python3 scripts/smoke_gpu.py` (with `--split` for the split topology)
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: results.json (first run)
+      description: smoke-results/<timestamp>/results.json, with the timings and VRAM peaks
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: idle
+    attributes:
+      label: Idle-check pass
+      description: |
+        report.txt from
+        `MODEL_IDLE_TIMEOUT=60 python3 scripts/smoke_gpu.py --no-build --quick --idle-check`,
+        on the same topology as the first run (add `--split` if you used it)
+      render: text
+  - type: textarea
+    id: listening
+    attributes:
+      label: How the clips sound
+      description: Listen to each saved clip (voice, music, sfx). The automated checks can tell sound from silence, but not good from bad.
+  - type: textarea
+    id: problems
+    attributes:
+      label: Anything that failed or looked wrong

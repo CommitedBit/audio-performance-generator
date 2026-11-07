@@ -33,6 +33,7 @@ run() {
   else
     printf 'FAIL  %s\n' "$name"
     FAILED+=("$name")
+    return 1
   fi
 }
 
@@ -62,11 +63,26 @@ if [ "$FULL" = 1 ]; then
   fi
   run "contract snapshots"     python3 scripts/snapshot_contracts.py --check
   if [ "$HAVE_DOCKER" = 1 ]; then
+    # smoke-results/ may also hold the owner's GPU runs, the only record of
+    # them (it is not in git). So the dev run writes to a directory of its own,
+    # and only that one is removed, only when the run passes; a failed run's
+    # results and logs stay for reading. smoke_gpu.py refuses an --out that
+    # already exists.
+    dev_run="smoke-results/dev-check-$(date +%Y%m%d-%H%M%S)-$$"
     # No --quick, as in CI: the restart round is part of what this covers.
-    run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev
+    if run "dev stack end to end"   python3 scripts/smoke_gpu.py --dev --out "$dev_run"; then
+      dev_ok=1
+    else
+      dev_ok=0
+    fi
     # The smoke run leaves the dev stack up; take it down either way.
     docker compose -f docker-compose.yml down >/dev/null 2>&1
-    rm -rf smoke-results
+    if [ "$dev_ok" = 1 ]; then
+      rm -rf "$dev_run"
+      rmdir smoke-results 2>/dev/null || true
+    else
+      printf 'kept  the failed dev run: %s\n' "$dev_run"
+    fi
   else
     printf '\nskip  dev stack end to end: docker is not installed here (CI e2e runs it)\n'
   fi

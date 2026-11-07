@@ -32,8 +32,9 @@ The stack keeps that timeout until it is next started without it. With --dev
 the stubs load and unload like real models but hold no VRAM, so only the
 unload is checked.
 
-Writes smoke-results/<timestamp>/: the clips, report.txt, results.json (the
-input for VRAM budgeting) and, on any failure, the compose logs.
+Writes smoke-results/<timestamp>/, or the new directory --out names: the
+clips, report.txt, results.json (the input for VRAM budgeting) and, on any
+failure, the compose logs.
 """
 from __future__ import annotations
 
@@ -642,6 +643,13 @@ def preflight(compose: Compose, report: Report, image_tag: str) -> bool:
     return not report.failed
 
 
+def output_dir(out: str | None) -> Path:
+    """Where this run writes: --out, or a new timestamped smoke-results/ directory."""
+    if out:
+        return Path(out)
+    return ROOT / "smoke-results" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--split", action="store_true", help="use the split topology")
@@ -652,7 +660,15 @@ def main() -> int:
     ap.add_argument("--idle-check", action="store_true",
                     help="after the rounds, wait for the idle sweep to unload every model and check the VRAM comes "
                          f"back down; needs MODEL_IDLE_TIMEOUT <= {IDLE_TIMEOUT_CEILING} in the environment")
+    ap.add_argument("--out", metavar="DIR",
+                    help="write this run's files to DIR, which must not exist yet "
+                         "(default: smoke-results/<timestamp>)")
     a = ap.parse_args()
+    out = output_dir(a.out)
+    # scripts/check.sh deletes a passing dev run's --out directory, so never
+    # adopt one that may already hold someone's results.
+    if out.exists():
+        ap.error(f"--out {out} already exists")
 
     if a.dev:
         files = ["docker-compose.yml"]
@@ -661,7 +677,6 @@ def main() -> int:
         files = ["compose.gpu.yml"] + (["compose.gpu.split.yml"] if a.split else [])
     compose = Compose(files)
     services = model_services(a.dev, a.split)
-    out = ROOT / "smoke-results" / dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True)
     report = Report(out)
     report.say(f"smoke run {out.name}: {' + '.join(files)}")

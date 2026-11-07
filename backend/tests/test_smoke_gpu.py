@@ -390,3 +390,34 @@ def test_the_figures_the_check_reads_are_the_ones_health_reports(api, use_provid
     assert _smoke_gpu().torch_allocated(health) == 1.5
     assert health["gpu"]["torch_reserved_gb"] == 2.0
     assert health["jobs"]["tracked"] == 0
+
+
+# -- where a run writes ------------------------------------------------------------
+
+def test_each_run_gets_its_own_timestamped_directory_by_default():
+    out = _smoke_gpu().output_dir(None)
+    assert out.parent == ROOT / "smoke-results"
+    assert re.fullmatch(r"\d{8}-\d{6}", out.name)
+
+
+def test_out_names_the_run_directory(tmp_path):
+    # scripts/check.sh gives its dev run a directory of its own, so it can
+    # remove exactly that run and nothing else in smoke-results/.
+    assert _smoke_gpu().output_dir(str(tmp_path / "run")) == tmp_path / "run"
+
+
+def test_out_refuses_a_directory_that_already_exists(tmp_path, monkeypatch, capsys):
+    # check.sh deletes a passing dev run's --out directory, so a run must never
+    # adopt one that already holds results.
+    (tmp_path / "run").mkdir()
+    smoke = _smoke_gpu()
+
+    def no_stack(files):
+        raise AssertionError("refused too late: the stack was already being started")
+
+    monkeypatch.setattr(smoke, "Compose", no_stack)
+    monkeypatch.setattr(sys, "argv", ["smoke_gpu.py", "--dev", "--out", str(tmp_path / "run")])
+    with pytest.raises(SystemExit) as exc:
+        smoke.main()
+    assert exc.value.code == 2
+    assert "already exists" in capsys.readouterr().err
