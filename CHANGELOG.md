@@ -8,26 +8,34 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-07
+
 ### Added
 - **`docs/codex-kickoff.md`:** the kickoff prompt for a coding agent taking
-  over, versioned with the docs it points to.
+  over, versioned with the docs it points to. #41
 - **An "M2 GPU results" issue form,** so the owner's first GPU run arrives in
   the shape the next steps need: version, topology, `report.txt`,
-  `results.json`, the idle-check pass, and listening notes.
+  `results.json`, the idle-check pass, and listening notes. #41
 - **README:** a CI badge, and a "New here?" pointer to HANDOFF.md, AGENTS.md
-  and the kickoff prompt.
+  and the kickoff prompt. #41
 - **`scripts/smoke_gpu.py --out DIR`** writes a run to DIR instead of a new
-  `smoke-results/<timestamp>/`. It refuses a DIR that already exists.
+  `smoke-results/<timestamp>/`. It refuses a DIR that already exists. #41
+
+### Changed
+- **Frontend dependencies: minor and patch updates** (Dependabot), among them
+  React 19.3.1, React Router 7.18.5, Vite 8.3.5, Vitest 5.0.5, ESLint 10.13,
+  typescript-eslint 8.72.1 and jsdom 30.1.3. TypeScript stays on 5.9, and the
+  Node floor is unchanged. #46
 
 ### Fixed
 - **`scripts/check.sh --full` deleted all of `smoke-results/`,** including any
   GPU runs, which are not in git. Its dev run now writes to a directory of its
   own (`--out`). Only that directory is removed, and only when the run passes;
   a failed run's results stay, and their path is printed. Tests run the real
-  script against stub tools.
+  script against stub tools. #41
 - **README:** the intro called ElevenLabs an "optional fallback". It's used
   only when picked; it stands in automatically only if `ALLOW_CLOUD_DEFAULT=1`
-  opts in.
+  opts in. #41
 - **Handoff docs:**
   - AGENTS.md now lists the owner's jobs that agents never do: merging,
     releases, repository settings and the GPU run.
@@ -39,6 +47,8 @@ cut a release: [docs/git-workflow.md](docs/git-workflow.md#releases).
   - Agents run Docker only against a verified local daemon. Unsetting
     `DOCKER_CONTEXT` could still leave a saved `gpu` default or a
     `DOCKER_HOST` pointing at the VM.
+
+  #41
 
 ## [0.3.1] - 2026-10-03
 
